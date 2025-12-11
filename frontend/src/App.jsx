@@ -1,42 +1,33 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
-import { Send, Sparkles, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, User } from 'lucide-react';
+import { Send, Sparkles, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- MAIN WRAPPER (Handles Security) ---
+// --- MAIN WRAPPER ---
 export default function App() {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => subscription.unsubscribe();
   }, []);
 
-  if (!session) {
-    return <Auth />;
-  }
-
+  if (!session) return <Auth />;
   return <ChatInterface session={session} />;
 }
 
-// --- CHAT UI (No Image Logo) ---
+// --- CHAT INTERFACE ---
 function ChatInterface({ session }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isUploading, setIsUploading] = useState(false); // NEW STATE
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null); // Ref for hidden file input
 
   const BRAND_NAME = "Campus AI Hub"; 
 
@@ -44,10 +35,39 @@ function ChatInterface({ session }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = async () => await supabase.auth.signOut();
+
+  // --- UPLOAD LOGIC ---
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    // Add a fake message to show we are working
+    setMessages(prev => [...prev, { role: 'bot', text: `📄 **Reading ${file.name}...** This might take a moment.` }]);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch('https://unimind-lx09.onrender.com/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        setMessages(prev => [...prev, { role: 'bot', text: "✅ **I have learned the document!** You can now ask questions about it." }]);
+      } else {
+        setMessages(prev => [...prev, { role: 'bot', text: "❌ Failed to read document." }]);
+      }
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'bot', text: "❌ Error uploading file." }]);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
+  // --- VOICE LOGIC ---
   const startListening = () => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -55,7 +75,6 @@ function ChatInterface({ session }) {
       recognition.lang = 'en-US';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
-
       setIsListening(true);
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
@@ -63,7 +82,6 @@ function ChatInterface({ session }) {
         sendMessage(transcript);
         setIsListening(false);
       };
-      recognition.onerror = (event) => console.error("Voice Error:", event.error);
       recognition.onend = () => setIsListening(false);
       recognition.start();
     } else {
@@ -71,9 +89,9 @@ function ChatInterface({ session }) {
     }
   };
 
+  // --- CHAT LOGIC ---
   const sendMessage = async (text = input) => {
     if (!text.trim()) return;
-
     const userMessage = { role: 'user', text: text };
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
@@ -100,36 +118,24 @@ function ChatInterface({ session }) {
       {/* SIDEBAR */}
       <div className="hidden md:flex flex-col w-[260px] bg-[#1e1f20] p-4 justify-between border-r border-[#333]">
         <div>
-          {/* --- BRAND NAME (TEXT ONLY - NO IMAGE) --- */}
           <div className="flex items-center gap-3 px-2 py-3 mb-6 cursor-pointer hover:bg-[#2a2b2e] rounded-lg transition-colors">
             <Menu className="w-6 h-6 text-gray-400" />
             <span className="font-semibold text-lg tracking-tight text-white">{BRAND_NAME}</span>
           </div>
-          
           <button onClick={() => setMessages([])} className="flex items-center gap-3 w-full bg-[#1e1f20] hover:bg-[#333537] px-4 py-3 rounded-full text-sm font-medium transition-all mb-6 text-[#e3e3e3] border border-[#333]">
             <Plus size={18} /> New chat
           </button>
-
           <div className="space-y-1 mt-4">
              <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Recent</div>
              <div className="px-3 py-2 text-sm text-[#c4c7c5] hover:bg-[#2a2b2e] rounded-lg cursor-pointer transition-colors truncate flex items-center gap-2"><BookOpen size={14} /> Java Syllabus</div>
           </div>
         </div>
-        
-        {/* USER PROFILE & LOGOUT */}
         <div className="mt-auto pt-4 border-t border-[#333]">
           <div className="px-2 py-2 rounded-lg flex items-center gap-3 text-sm text-[#c4c7c5]">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs uppercase">
-               {session.user.email[0]} 
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <div className="text-gray-200 font-medium truncate w-32">{session.user.email}</div>
-              <div className="text-xs text-green-400">● Online</div>
-            </div>
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs uppercase">{session.user.email[0]}</div>
+            <div className="flex-1 overflow-hidden"><div className="text-gray-200 font-medium truncate w-32">{session.user.email}</div><div className="text-xs text-green-400">● Online</div></div>
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-[#2a2b2e] rounded-lg mt-2 transition-colors">
-            <LogOut size={16} /> Sign out
-          </button>
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-[#2a2b2e] rounded-lg mt-2 transition-colors"><LogOut size={16} /> Sign out</button>
         </div>
       </div>
 
@@ -147,12 +153,10 @@ function ChatInterface({ session }) {
                   <button onClick={() => sendMessage("What is the syllabus for Java?")} className="relative group text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-6 rounded-2xl transition-all border border-transparent hover:border-[#444746] flex flex-col h-full">
                     <div className="absolute top-4 right-4 bg-black/20 p-2 rounded-full group-hover:bg-blue-500/10 transition-colors"><Compass size={20} className="text-[#444746] group-hover:text-blue-400" /></div>
                     <p className="text-[#e3e3e3] font-medium text-lg mb-1 mt-2">Explain the syllabus</p>
-                    <p className="text-[#8e918f] text-sm">for the Java Programming course</p>
                   </button>
                   <button onClick={() => sendMessage("What are the attendance rules?")} className="relative group text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-6 rounded-2xl transition-all border border-transparent hover:border-[#444746] flex flex-col h-full">
                      <div className="absolute top-4 right-4 bg-black/20 p-2 rounded-full group-hover:bg-purple-500/10 transition-colors"><GraduationCap size={20} className="text-[#444746] group-hover:text-purple-400" /></div>
                     <p className="text-[#e3e3e3] font-medium text-lg mb-1 mt-2">Check the rules</p>
-                    <p className="text-[#8e918f] text-sm">regarding attendance and exams</p>
                   </button>
                 </div>
               </div>
@@ -175,11 +179,32 @@ function ChatInterface({ session }) {
           </div>
         </div>
 
-        {/* INPUT BAR */}
+        {/* --- INPUT BAR WITH UPLOAD BUTTON --- */}
         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#131314] via-[#131314] to-transparent pb-8 pt-10 px-4">
           <div className="max-w-3xl mx-auto relative bg-[#1e1f20] rounded-full border border-[#333] hover:border-[#444] focus-within:bg-[#2a2b2e] focus-within:border-gray-500 transition-all shadow-xl flex items-center">
-            <input type="text" className="w-full bg-transparent text-[#e3e3e3] pl-6 pr-24 py-4 focus:outline-none placeholder-[#8e918f] text-[16px]" placeholder={isListening ? "Listening..." : `Ask ${BRAND_NAME}...`} value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && sendMessage()} />
-            <div className="absolute right-2 top-2 flexchange items-center gap-1">
+            
+            {/* HIDDEN FILE INPUT */}
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept=".pdf" 
+              onChange={handleFileUpload} 
+            />
+
+            {/* UPLOAD BUTTON */}
+            <button 
+              onClick={() => fileInputRef.current.click()} 
+              disabled={isUploading || isLoading}
+              className="ml-2 p-2 rounded-full bg-transparent text-[#e3e3e3] hover:bg-[#333] transition-colors"
+              title="Upload PDF"
+            >
+              {isUploading ? <Loader2 size={20} className="animate-spin text-blue-400" /> : <Paperclip size={20} />}
+            </button>
+
+            <input type="text" className="w-full bg-transparent text-[#e3e3e3] pl-4 pr-24 py-4 focus:outline-none placeholder-[#8e918f] text-[16px]" placeholder={isListening ? "Listening..." : `Ask ${BRAND_NAME}...`} value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && sendMessage()} />
+            
+            <div className="absolute right-2 top-2 flex items-center gap-1">
                <button onClick={startListening} className={`p-2 rounded-full transition-all duration-200 ${isListening ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-transparent text-[#e3e3e3] hover:bg-[#333]'}`}>{isListening ? <MicOff size={20} /> : <Mic size={20} />}</button>
                <button onClick={() => sendMessage()} disabled={!input.trim() || isLoading} className={`p-2 rounded-full transition-all duration-200 ${input.trim() ? 'bg-white text-black hover:bg-gray-200 shadow-md' : 'bg-transparent text-[#444746] cursor-not-allowed'}`}><Send size={20} /></button>
             </div>
