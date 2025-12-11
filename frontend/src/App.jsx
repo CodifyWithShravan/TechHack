@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Menu, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff } from 'lucide-react';
+import { Send, Sparkles, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -7,8 +7,12 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false); // State for voice
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // --- CONFIG: CHANGE YOUR BRAND NAME HERE ---
+  const BRAND_NAME = "Campus AI"; 
+  // -------------------------------------------
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -28,7 +32,7 @@ export default function App() {
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         setInput(transcript);
-        sendMessage(transcript); // Auto-send when speaking stops
+        sendMessage(transcript);
         setIsListening(false);
       };
 
@@ -56,7 +60,6 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // USING YOUR LIVE RENDER BACKEND
       const response = await fetch('https://unimind-lx09.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,9 +81,17 @@ export default function App() {
       {/* SIDEBAR (Hidden on mobile) */}
       <div className="hidden md:flex flex-col w-[260px] bg-[#1e1f20] p-4 justify-between border-r border-[#333]">
         <div>
-          <div className="flex items-center gap-2 px-2 py-3 mb-6 cursor-pointer hover:bg-[#2a2b2e] rounded-lg transition-colors">
-            <Menu className="w-5 h-5 text-gray-400" />
-            <span className="font-semibold text-lg tracking-tight text-gray-200">UniMind</span>
+          {/* --- LOGO SECTION --- */}
+          <div className="flex items-center gap-3 px-2 py-3 mb-6 cursor-pointer hover:bg-[#2a2b2e] rounded-lg transition-colors">
+            {/* Make sure logo.png is in your 'public' folder */}
+            <img 
+              src="/logo.png" 
+              alt="Logo" 
+              className="w-8 h-8 object-contain" 
+            />
+            <span className="font-semibold text-xl tracking-tight text-gray-100">
+              {BRAND_NAME}
+            </span>
           </div>
           
           <button 
@@ -220,7 +231,7 @@ export default function App() {
             <input
               type="text"
               className="w-full bg-transparent text-[#e3e3e3] pl-6 pr-24 py-4 focus:outline-none placeholder-[#8e918f] text-[16px]"
-              placeholder={isListening ? "Listening..." : "Ask UniMind about your syllabus..."}
+              placeholder={isListening ? "Listening..." : `Ask ${BRAND_NAME} about your syllabus...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
@@ -256,7 +267,7 @@ export default function App() {
 
           </div>
           <p className="text-center text-[12px] text-[#8e918f] mt-4 font-medium">
-             UniMind can make mistakes. Please verify important information.
+             {BRAND_NAME} can make mistakes. Please verify important information.
           </p>
         </div>
 
