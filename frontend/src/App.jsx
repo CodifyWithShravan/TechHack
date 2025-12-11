@@ -179,7 +179,7 @@ function ChatInterface({ session }) {
         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#131314] via-[#131314] to-transparent pb-8 pt-10 px-4">
           <div className="max-w-3xl mx-auto relative bg-[#1e1f20] rounded-full border border-[#333] hover:border-[#444] focus-within:bg-[#2a2b2e] focus-within:border-gray-500 transition-all shadow-xl flex items-center">
             <input type="text" className="w-full bg-transparent text-[#e3e3e3] pl-6 pr-24 py-4 focus:outline-none placeholder-[#8e918f] text-[16px]" placeholder={isListening ? "Listening..." : `Ask ${BRAND_NAME}...`} value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && sendMessage()} />
-            <div className="absolute right-2 top-2 flex items-center gap-1">
+            <div className="absolute right-2 top-2 flexchange items-center gap-1">
                <button onClick={startListening} className={`p-2 rounded-full transition-all duration-200 ${isListening ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-transparent text-[#e3e3e3] hover:bg-[#333]'}`}>{isListening ? <MicOff size={20} /> : <Mic size={20} />}</button>
                <button onClick={() => sendMessage()} disabled={!input.trim() || isLoading} className={`p-2 rounded-full transition-all duration-200 ${input.trim() ? 'bg-white text-black hover:bg-gray-200 shadow-md' : 'bg-transparent text-[#444746] cursor-not-allowed'}`}><Send size={20} /></button>
             </div>
