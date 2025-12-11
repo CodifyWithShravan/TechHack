@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff } from 'lucide-react';
+import { Send, Sparkles, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -10,9 +10,9 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // --- CONFIG: BRAND NAME ---
+  // --- CONFIG: YOUR BRAND NAME ---
   const BRAND_NAME = "Campus AI Hub"; 
-  // --------------------------
+  // -------------------------------
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,7 +60,6 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // Using your live backend URL
       const response = await fetch('https://unimind-lx09.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,13 +81,9 @@ export default function App() {
       {/* SIDEBAR */}
       <div className="hidden md:flex flex-col w-[260px] bg-[#1e1f20] p-4 justify-between border-r border-[#333]">
         <div>
-          {/* --- LOGO & BRAND SECTION --- */}
+          {/* --- BRAND NAME (TEXT ONLY) --- */}
           <div className="flex items-center gap-3 px-2 py-3 mb-6 cursor-pointer hover:bg-[#2a2b2e] rounded-lg transition-colors">
-            <img 
-              src="/logo.jpg" 
-              alt="Campus AI Hub Logo" 
-              className="w-8 h-8 object-contain rounded-full" 
-            />
+            <Menu className="w-6 h-6 text-gray-400" />
             <span className="font-semibold text-lg tracking-tight text-white">
               {BRAND_NAME}
             </span>
