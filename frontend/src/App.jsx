@@ -22,7 +22,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://40.0.9.13:8000/api/chat', {
+      const response = await fetch('https://unimind-lx09.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: text }),
