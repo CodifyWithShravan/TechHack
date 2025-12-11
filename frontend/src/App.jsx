@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
-// FIXED: Added 'Sparkles' to the import list below
 import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- MAIN WRAPPER ---
 export default function App() {
   const [session, setSession] = useState(null);
 
@@ -20,7 +18,6 @@ export default function App() {
   return <ChatInterface session={session} />;
 }
 
-// --- CHAT INTERFACE ---
 function ChatInterface({ session }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -33,17 +30,49 @@ function ChatInterface({ session }) {
 
   const BRAND_NAME = "Campus AI Hub"; 
 
+  // --- 1. LOAD HISTORY ON START ---
+  useEffect(() => {
+    const loadHistory = async () => {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: true });
+      
+      if (data) {
+        // Convert DB format to App format
+        const formatted = data.map(msg => ({
+          role: msg.is_bot ? 'bot' : 'user',
+          text: msg.text
+        }));
+        setMessages(formatted);
+      }
+    };
+    loadHistory();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleLogout = async () => await supabase.auth.signOut();
 
+  // --- HELPER: SAVE TO DB ---
+  const saveMessageToDB = async (text, isBot) => {
+    await supabase.from('messages').insert({
+      user_id: session.user.id,
+      text: text,
+      is_bot: isBot
+    });
+  };
+
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
     setIsUploading(true);
-    setMessages(prev => [...prev, { role: 'bot', text: `📄 **Reading ${file.name}...**` }]);
+    
+    const loadingText = `📄 **Reading ${file.name}...**`;
+    setMessages(prev => [...prev, { role: 'bot', text: loadingText }]);
     
     const formData = new FormData();
     formData.append("file", file);
@@ -53,11 +82,22 @@ function ChatInterface({ session }) {
         method: 'POST',
         body: formData,
       });
+      
+      let replyText = "";
       if (response.ok) {
-        setMessages(prev => [...prev, { role: 'bot', text: "✅ **I have learned the document!** Ask me anything." }]);
+        replyText = "✅ **I have learned the document!** Ask me anything.";
       } else {
-        setMessages(prev => [...prev, { role: 'bot', text: "❌ Failed to read document." }]);
+        replyText = "❌ Failed to read document.";
       }
+      
+      // Update the last message
+      setMessages(prev => {
+         const newMsgs = [...prev];
+         newMsgs[newMsgs.length - 1].text = replyText;
+         return newMsgs;
+      });
+      // We don't usually save "uploading..." system messages to history, but you can if you want.
+
     } catch (error) {
       setMessages(prev => [...prev, { role: 'bot', text: "❌ Error uploading file." }]);
     } finally {
@@ -88,10 +128,15 @@ function ChatInterface({ session }) {
 
   const sendMessage = async (text = input) => {
     if (!text.trim()) return;
+    
+    // 1. Show User Message
     const userMessage = { role: 'user', text: text };
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+
+    // 2. Save User Message to DB
+    saveMessageToDB(text, false);
 
     try {
       const response = await fetch('https://unimind-lx09.onrender.com/api/chat', {
@@ -100,12 +145,25 @@ function ChatInterface({ session }) {
         body: JSON.stringify({ question: text }),
       });
       const data = await response.json();
+      
+      // 3. Show Bot Message
       setMessages((prev) => [...prev, { role: 'bot', text: data.answer }]);
+      
+      // 4. Save Bot Message to DB
+      saveMessageToDB(data.answer, true);
+
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'bot', text: "❌ Connection Error. Backend might be sleeping." }]);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // --- CLEAR HISTORY FUNCTION ---
+  const clearChat = async () => {
+     setMessages([]);
+     // Optional: Delete from DB if you want "New Chat" to actually delete data
+     // await supabase.from('messages').delete().eq('user_id', session.user.id);
   };
 
   return (
@@ -139,7 +197,7 @@ function ChatInterface({ session }) {
             <span className="font-semibold text-lg tracking-tight text-white">{BRAND_NAME}</span>
           </div>
           
-          <button onClick={() => { setMessages([]); setMobileMenuOpen(false); }} className="flex items-center gap-3 w-full bg-[#2a2b2e] hover:bg-[#333] px-4 py-3 rounded-full text-sm font-medium transition-all mb-6 text-white border border-[#333]">
+          <button onClick={() => { clearChat(); setMobileMenuOpen(false); }} className="flex items-center gap-3 w-full bg-[#2a2b2e] hover:bg-[#333] px-4 py-3 rounded-full text-sm font-medium transition-all mb-6 text-white border border-[#333]">
             <Plus size={18} /> New chat
           </button>
 
