@@ -1,21 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
-import { supabase } from './supabaseClient'; // 1. Import Supabase
-import Auth from './Auth'; // 2. Import Login Screen
+import { supabase } from './supabaseClient';
+import Auth from './Auth';
 import { Send, Sparkles, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, User } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- MAIN WRAPPER COMPONENT (Handles Security) ---
+// --- MAIN WRAPPER (Handles Security) ---
 export default function App() {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    // Check active session on load
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
 
-    // Listen for login/logout events
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -25,16 +23,14 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // IF NO USER -> SHOW LOGIN SCREEN
   if (!session) {
     return <Auth />;
   }
 
-  // IF USER EXISTS -> SHOW CHAT
   return <ChatInterface session={session} />;
 }
 
-// --- YOUR EXISTING CHAT UI (Now protected) ---
+// --- CHAT UI (No Image Logo) ---
 function ChatInterface({ session }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -48,12 +44,10 @@ function ChatInterface({ session }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // --- LOGOUT FUNCTION ---
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
-  // --- VOICE LOGIC ---
   const startListening = () => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -63,26 +57,17 @@ function ChatInterface({ session }) {
       recognition.maxAlternatives = 1;
 
       setIsListening(true);
-
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         setInput(transcript);
         sendMessage(transcript);
         setIsListening(false);
       };
-
-      recognition.onerror = (event) => {
-        console.error("Voice Error:", event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
+      recognition.onerror = (event) => console.error("Voice Error:", event.error);
+      recognition.onend = () => setIsListening(false);
       recognition.start();
     } else {
-      alert("Sorry, your browser doesn't support voice input. Try Chrome or Safari.");
+      alert("Browser not supported for voice.");
     }
   };
 
@@ -100,11 +85,10 @@ function ChatInterface({ session }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: text }),
       });
-
       const data = await response.json();
       setMessages((prev) => [...prev, { role: 'bot', text: data.answer }]);
     } catch (error) {
-      setMessages((prev) => [...prev, { role: 'bot', text: "❌ **Connection Error**: Is the backend running?" }]);
+      setMessages((prev) => [...prev, { role: 'bot', text: "❌ Connection Error." }]);
     } finally {
       setIsLoading(false);
     }
@@ -116,9 +100,9 @@ function ChatInterface({ session }) {
       {/* SIDEBAR */}
       <div className="hidden md:flex flex-col w-[260px] bg-[#1e1f20] p-4 justify-between border-r border-[#333]">
         <div>
-          {/* BRAND */}
+          {/* --- BRAND NAME (TEXT ONLY - NO IMAGE) --- */}
           <div className="flex items-center gap-3 px-2 py-3 mb-6 cursor-pointer hover:bg-[#2a2b2e] rounded-lg transition-colors">
-            <img src="/logo.jpg" alt="Logo" className="w-8 h-8 object-contain rounded-full" />
+            <Menu className="w-6 h-6 text-gray-400" />
             <span className="font-semibold text-lg tracking-tight text-white">{BRAND_NAME}</span>
           </div>
           
@@ -132,28 +116,24 @@ function ChatInterface({ session }) {
           </div>
         </div>
         
-        {/* --- USER PROFILE & LOGOUT SECTION --- */}
+        {/* USER PROFILE & LOGOUT */}
         <div className="mt-auto pt-4 border-t border-[#333]">
           <div className="px-2 py-2 rounded-lg flex items-center gap-3 text-sm text-[#c4c7c5]">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs uppercase">
-               {session.user.email[0]} {/* Shows First Letter of Email */}
+               {session.user.email[0]} 
             </div>
             <div className="flex-1 overflow-hidden">
-              <div className="text-gray-200 font-medium truncate w-32" title={session.user.email}>{session.user.email}</div>
+              <div className="text-gray-200 font-medium truncate w-32">{session.user.email}</div>
               <div className="text-xs text-green-400">● Online</div>
             </div>
           </div>
-          
-          <button 
-            onClick={handleLogout} 
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-[#2a2b2e] rounded-lg mt-2 transition-colors"
-          >
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-[#2a2b2e] rounded-lg mt-2 transition-colors">
             <LogOut size={16} /> Sign out
           </button>
         </div>
       </div>
 
-      {/* MAIN CONTENT AREA (Same as before) */}
+      {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col relative w-full h-full">
         <div className="flex-1 overflow-y-auto w-full scroll-smooth">
           <div className="max-w-4xl mx-auto h-full flex flex-col px-4 md:px-0">
