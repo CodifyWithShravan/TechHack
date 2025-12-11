@@ -10,9 +10,9 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // --- CONFIG: CHANGE YOUR BRAND NAME HERE ---
-  const BRAND_NAME = "Campus AI"; 
-  // -------------------------------------------
+  // --- CONFIG: YOUR NEW BRAND NAME ---
+  const BRAND_NAME = "Campus AI Hub"; 
+  // -----------------------------------
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -81,15 +81,15 @@ export default function App() {
       {/* SIDEBAR (Hidden on mobile) */}
       <div className="hidden md:flex flex-col w-[260px] bg-[#1e1f20] p-4 justify-between border-r border-[#333]">
         <div>
-          {/* --- LOGO SECTION --- */}
+          {/* --- NEW LOGO SECTION --- */}
           <div className="flex items-center gap-3 px-2 py-3 mb-6 cursor-pointer hover:bg-[#2a2b2e] rounded-lg transition-colors">
-            {/* Make sure logo.png is in your 'public' folder */}
+            {/* Using your new logo file */}
             <img 
-              src="/logo.png" 
-              alt="Logo" 
-              className="w-8 h-8 object-contain" 
+              src="/logo.jpg" 
+              alt="Campus AI Hub Logo" 
+              className="w-10 h-10 object-contain rounded-full bg-white" 
             />
-            <span className="font-semibold text-xl tracking-tight text-gray-100">
+            <span className="font-semibold text-lg tracking-tight text-white">
               {BRAND_NAME}
             </span>
           </div>
@@ -231,7 +231,7 @@ export default function App() {
             <input
               type="text"
               className="w-full bg-transparent text-[#e3e3e3] pl-6 pr-24 py-4 focus:outline-none placeholder-[#8e918f] text-[16px]"
-              placeholder={isListening ? "Listening..." : `Ask ${BRAND_NAME} about your syllabus...`}
+              placeholder={isListening ? "Listening..." : `Ask ${BRAND_NAME}...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
