@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Menu, Compass, Plus, BookOpen, Code, GraduationCap } from 'lucide-react';
+import { Send, Sparkles, Menu, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -7,11 +7,45 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false); // State for voice
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // --- VOICE RECOGNITION LOGIC ---
+  const startListening = () => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      setIsListening(true);
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        sendMessage(transcript); // Auto-send when speaking stops
+        setIsListening(false);
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Voice Error:", event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } else {
+      alert("Sorry, your browser doesn't support voice input. Try Chrome or Safari.");
+    }
+  };
 
   const sendMessage = async (text = input) => {
     if (!text.trim()) return;
@@ -22,6 +56,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
+      // USING YOUR LIVE RENDER BACKEND
       const response = await fetch('https://unimind-lx09.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -31,7 +66,7 @@ export default function App() {
       const data = await response.json();
       setMessages((prev) => [...prev, { role: 'bot', text: data.answer }]);
     } catch (error) {
-      setMessages((prev) => [...prev, { role: 'bot', text: "❌ **Connection Error**: Is the backend running?" }]);
+      setMessages((prev) => [...prev, { role: 'bot', text: "❌ **Connection Error**: Is the backend running? (It might be waking up)" }]);
     } finally {
       setIsLoading(false);
     }
@@ -85,7 +120,6 @@ export default function App() {
             
             {/* --- WELCOME SCREEN (Centered) --- */}
             {messages.length === 0 ? (
-              // KEY FIX: w-full and text-center applied here
               <div className="flex-1 flex flex-col items-center justify-center h-full w-full min-h-[80vh] pb-32">
                 
                 {/* Greeting Text - Centered */}
@@ -100,7 +134,6 @@ export default function App() {
                 
                 {/* Suggestion Cards - Centered Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl px-4">
-                  {/* Card 1 */}
                   <button 
                     onClick={() => sendMessage("What is the syllabus for Java?")} 
                     className="relative group text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-6 rounded-2xl transition-all border border-transparent hover:border-[#444746] flex flex-col h-full"
@@ -112,7 +145,6 @@ export default function App() {
                     <p className="text-[#8e918f] text-sm">for the Java Programming course</p>
                   </button>
                   
-                  {/* Card 2 */}
                   <button 
                     onClick={() => sendMessage("What are the attendance rules?")} 
                     className="relative group text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-6 rounded-2xl transition-all border border-transparent hover:border-[#444746] flex flex-col h-full"
@@ -181,28 +213,47 @@ export default function App() {
           </div>
         </div>
 
-        {/* FLOATING INPUT BAR */}
+        {/* --- FLOATING INPUT BAR WITH VOICE --- */}
         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#131314] via-[#131314] to-transparent pb-8 pt-10 px-4">
-          <div className="max-w-3xl mx-auto relative bg-[#1e1f20] rounded-full border border-[#333] hover:border-[#444] focus-within:bg-[#2a2b2e] focus-within:border-gray-500 transition-all shadow-xl">
+          <div className="max-w-3xl mx-auto relative bg-[#1e1f20] rounded-full border border-[#333] hover:border-[#444] focus-within:bg-[#2a2b2e] focus-within:border-gray-500 transition-all shadow-xl flex items-center">
+            
             <input
               type="text"
-              className="w-full bg-transparent text-[#e3e3e3] pl-6 pr-14 py-4 focus:outline-none placeholder-[#8e918f] text-[16px]"
-              placeholder="Ask UniMind about your syllabus..."
+              className="w-full bg-transparent text-[#e3e3e3] pl-6 pr-24 py-4 focus:outline-none placeholder-[#8e918f] text-[16px]"
+              placeholder={isListening ? "Listening..." : "Ask UniMind about your syllabus..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
             />
-            <button
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || isLoading}
-              className={`absolute right-2 top-2 p-2 rounded-full transition-all duration-200 ${
-                input.trim() 
-                  ? 'bg-white text-black hover:bg-gray-200 shadow-md' 
-                  : 'bg-transparent text-[#444746] cursor-not-allowed'
-              }`}
-            >
-              <Send size={20} />
-            </button>
+            
+            {/* BUTTON GROUP (Voice + Send) */}
+            <div className="absolute right-2 top-2 flex items-center gap-1">
+               {/* MIC BUTTON */}
+               <button
+                  onClick={startListening}
+                  className={`p-2 rounded-full transition-all duration-200 ${
+                    isListening 
+                      ? 'bg-red-500/20 text-red-400 animate-pulse' 
+                      : 'bg-transparent text-[#e3e3e3] hover:bg-[#333]'
+                  }`}
+               >
+                  {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+               </button>
+
+               {/* SEND BUTTON */}
+               <button
+                  onClick={() => sendMessage()}
+                  disabled={!input.trim() || isLoading}
+                  className={`p-2 rounded-full transition-all duration-200 ${
+                    input.trim() 
+                      ? 'bg-white text-black hover:bg-gray-200 shadow-md' 
+                      : 'bg-transparent text-[#444746] cursor-not-allowed'
+                  }`}
+               >
+                  <Send size={20} />
+               </button>
+            </div>
+
           </div>
           <p className="text-center text-[12px] text-[#8e918f] mt-4 font-medium">
              UniMind can make mistakes. Please verify important information.
