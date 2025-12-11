@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
-import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X } from 'lucide-react';
+// FIXED: Added 'Sparkles' to the import list below
+import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -26,7 +27,7 @@ function ChatInterface({ session }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile sidebar toggle
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -110,7 +111,7 @@ function ChatInterface({ session }) {
   return (
     <div className="flex h-screen bg-[#131314] text-[#e3e3e3] font-sans overflow-hidden relative">
       
-      {/* --- MOBILE HEADER (Visible only on phone) --- */}
+      {/* --- MOBILE HEADER --- */}
       <div className="md:hidden fixed top-0 w-full h-16 bg-[#1e1f20]/90 backdrop-blur-md border-b border-[#333] flex items-center justify-between px-4 z-50">
         <div className="flex items-center gap-2">
           <img src="/logo.jpg" alt="Logo" className="w-8 h-8 rounded-full" />
@@ -121,12 +122,11 @@ function ChatInterface({ session }) {
         </button>
       </div>
 
-      {/* --- SIDEBAR (Desktop: Visible | Mobile: Hidden unless toggled) --- */}
+      {/* --- SIDEBAR --- */}
       <div className={`
         fixed inset-0 z-50 bg-black/80 backdrop-blur-sm md:static md:bg-[#1e1f20] md:flex md:w-[280px] md:flex-col md:border-r md:border-[#333]
         ${mobileMenuOpen ? 'flex' : 'hidden'}
       `}>
-        {/* Mobile Close Button */}
         <div className="md:hidden absolute top-4 right-4">
           <button onClick={() => setMobileMenuOpen(false)} className="p-2 bg-[#333] rounded-full text-white">
             <X size={20} />
@@ -220,7 +220,7 @@ function ChatInterface({ session }) {
                       <div className={`max-w-[85%] md:max-w-[75%] px-5 py-3 rounded-2xl text-[15px] leading-relaxed shadow-sm ${
                         msg.role === 'user' 
                           ? 'bg-[#2a2b2e] text-white rounded-br-sm' 
-                          : 'text-[#e3e3e3] px-0 py-0' // Clean look for bot
+                          : 'text-[#e3e3e3] px-0 py-0' 
                       }`}>
                         {msg.role === 'bot' ? (
                           <div className="prose prose-invert prose-p:leading-7 prose-li:marker:text-gray-500 max-w-none">
@@ -257,7 +257,6 @@ function ChatInterface({ session }) {
           <div className="max-w-3xl mx-auto">
             <div className="relative bg-[#1e1f20] rounded-full border border-[#333] focus-within:border-gray-500 focus-within:bg-[#2a2b2e] transition-all shadow-lg flex items-center pr-2">
               
-              {/* File Upload */}
               <input type="file" ref={fileInputRef} className="hidden" accept=".pdf" onChange={handleFileUpload} />
               <button 
                 onClick={() => fileInputRef.current.click()} 
