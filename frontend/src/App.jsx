@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff } from 'lucide-react';
+import { Send, Sparkles, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -10,9 +10,9 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // --- CONFIG: YOUR NEW BRAND NAME ---
+  // --- CONFIG: YOUR BRAND NAME ---
   const BRAND_NAME = "Campus AI Hub"; 
-  // -----------------------------------
+  // -------------------------------
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,7 +69,7 @@ export default function App() {
       const data = await response.json();
       setMessages((prev) => [...prev, { role: 'bot', text: data.answer }]);
     } catch (error) {
-      setMessages((prev) => [...prev, { role: 'bot', text: "❌ **Connection Error**: Is the backend running? (It might be waking up)" }]);
+      setMessages((prev) => [...prev, { role: 'bot', text: "❌ **Connection Error**: Is the backend running?" }]);
     } finally {
       setIsLoading(false);
     }
@@ -78,17 +78,12 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#131314] text-[#e3e3e3] font-sans overflow-hidden">
       
-      {/* SIDEBAR (Hidden on mobile) */}
+      {/* SIDEBAR */}
       <div className="hidden md:flex flex-col w-[260px] bg-[#1e1f20] p-4 justify-between border-r border-[#333]">
         <div>
-          {/* --- NEW LOGO SECTION --- */}
+          {/* --- BRAND NAME (TEXT ONLY) --- */}
           <div className="flex items-center gap-3 px-2 py-3 mb-6 cursor-pointer hover:bg-[#2a2b2e] rounded-lg transition-colors">
-            {/* Using your new logo file */}
-            <img 
-              src="/logo.jpg" 
-              alt="Campus AI Hub Logo" 
-              className="w-10 h-10 object-contain rounded-full bg-white" 
-            />
+            <Menu className="w-6 h-6 text-gray-400" />
             <span className="font-semibold text-lg tracking-tight text-white">
               {BRAND_NAME}
             </span>
@@ -107,9 +102,6 @@ export default function App() {
              <div className="px-3 py-2 text-sm text-[#c4c7c5] hover:bg-[#2a2b2e] rounded-lg cursor-pointer transition-colors truncate flex items-center gap-2">
                 <BookOpen size={14} /> Java Syllabus
              </div>
-             <div className="px-3 py-2 text-sm text-[#c4c7c5] hover:bg-[#2a2b2e] rounded-lg cursor-pointer transition-colors truncate flex items-center gap-2">
-                <Code size={14} /> Lab Schedule
-             </div>
           </div>
         </div>
         
@@ -122,18 +114,14 @@ export default function App() {
         </div>
       </div>
 
-      {/* MAIN CONTENT AREA */}
+      {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col relative w-full h-full">
-        
-        {/* SCROLLABLE AREA */}
         <div className="flex-1 overflow-y-auto w-full scroll-smooth">
           <div className="max-w-4xl mx-auto h-full flex flex-col px-4 md:px-0">
             
-            {/* --- WELCOME SCREEN (Centered) --- */}
+            {/* --- WELCOME SCREEN --- */}
             {messages.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center h-full w-full min-h-[80vh] pb-32">
-                
-                {/* Greeting Text - Centered */}
                 <div className="mb-12 text-center w-full">
                   <h1 className="text-5xl md:text-6xl font-medium bg-gradient-to-r from-[#4285f4] via-[#9b72cb] to-[#d96570] text-transparent bg-clip-text inline-block pb-2">
                     Hello, Student.
@@ -143,23 +131,15 @@ export default function App() {
                   </h2>
                 </div>
                 
-                {/* Suggestion Cards - Centered Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl px-4">
-                  <button 
-                    onClick={() => sendMessage("What is the syllabus for Java?")} 
-                    className="relative group text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-6 rounded-2xl transition-all border border-transparent hover:border-[#444746] flex flex-col h-full"
-                  >
+                  <button onClick={() => sendMessage("What is the syllabus for Java?")} className="relative group text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-6 rounded-2xl transition-all border border-transparent hover:border-[#444746] flex flex-col h-full">
                     <div className="absolute top-4 right-4 bg-black/20 p-2 rounded-full group-hover:bg-blue-500/10 transition-colors">
                       <Compass size={20} className="text-[#444746] group-hover:text-blue-400" />
                     </div>
                     <p className="text-[#e3e3e3] font-medium text-lg mb-1 mt-2">Explain the syllabus</p>
                     <p className="text-[#8e918f] text-sm">for the Java Programming course</p>
                   </button>
-                  
-                  <button 
-                    onClick={() => sendMessage("What are the attendance rules?")} 
-                    className="relative group text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-6 rounded-2xl transition-all border border-transparent hover:border-[#444746] flex flex-col h-full"
-                  >
+                  <button onClick={() => sendMessage("What are the attendance rules?")} className="relative group text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-6 rounded-2xl transition-all border border-transparent hover:border-[#444746] flex flex-col h-full">
                      <div className="absolute top-4 right-4 bg-black/20 p-2 rounded-full group-hover:bg-purple-500/10 transition-colors">
                       <GraduationCap size={20} className="text-[#444746] group-hover:text-purple-400" />
                     </div>
@@ -169,7 +149,7 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* --- CHAT MESSAGES LIST --- */
+              /* --- CHAT MESSAGES --- */
               <div className="pt-10 pb-40 space-y-8 w-full">
                 <AnimatePresence>
                   {messages.map((msg, index) => (
@@ -180,14 +160,11 @@ export default function App() {
                       transition={{ duration: 0.3 }}
                       className={`flex gap-5 w-full ${msg.role === 'user' ? 'justify-end' : ''}`}
                     >
-                      {/* Bot Icon */}
                       {msg.role === 'bot' && (
                         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-red-500 flex items-center justify-center shrink-0 mt-1 shadow-lg shadow-blue-900/20">
                           <Sparkles size={16} className="text-white" />
                         </div>
                       )}
-
-                      {/* Message Content */}
                       <div className={`leading-relaxed max-w-[85%] ${
                         msg.role === 'user' 
                           ? 'bg-[#2a2b2e] text-[#e3e3e3] px-6 py-3 rounded-[24px] rounded-br-sm text-[16px]' 
@@ -204,8 +181,6 @@ export default function App() {
                     </motion.div>
                   ))}
                 </AnimatePresence>
-
-                {/* Loading State */}
                 {isLoading && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-5">
                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-red-500 flex items-center justify-center shrink-0 animate-pulse">
@@ -224,7 +199,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* --- FLOATING INPUT BAR WITH VOICE --- */}
+        {/* --- INPUT BAR --- */}
         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#131314] via-[#131314] to-transparent pb-8 pt-10 px-4">
           <div className="max-w-3xl mx-auto relative bg-[#1e1f20] rounded-full border border-[#333] hover:border-[#444] focus-within:bg-[#2a2b2e] focus-within:border-gray-500 transition-all shadow-xl flex items-center">
             
@@ -237,34 +212,14 @@ export default function App() {
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
             />
             
-            {/* BUTTON GROUP (Voice + Send) */}
             <div className="absolute right-2 top-2 flex items-center gap-1">
-               {/* MIC BUTTON */}
-               <button
-                  onClick={startListening}
-                  className={`p-2 rounded-full transition-all duration-200 ${
-                    isListening 
-                      ? 'bg-red-500/20 text-red-400 animate-pulse' 
-                      : 'bg-transparent text-[#e3e3e3] hover:bg-[#333]'
-                  }`}
-               >
+               <button onClick={startListening} className={`p-2 rounded-full transition-all duration-200 ${isListening ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-transparent text-[#e3e3e3] hover:bg-[#333]'}`}>
                   {isListening ? <MicOff size={20} /> : <Mic size={20} />}
                </button>
-
-               {/* SEND BUTTON */}
-               <button
-                  onClick={() => sendMessage()}
-                  disabled={!input.trim() || isLoading}
-                  className={`p-2 rounded-full transition-all duration-200 ${
-                    input.trim() 
-                      ? 'bg-white text-black hover:bg-gray-200 shadow-md' 
-                      : 'bg-transparent text-[#444746] cursor-not-allowed'
-                  }`}
-               >
+               <button onClick={() => sendMessage()} disabled={!input.trim() || isLoading} className={`p-2 rounded-full transition-all duration-200 ${input.trim() ? 'bg-white text-black hover:bg-gray-200 shadow-md' : 'bg-transparent text-[#444746] cursor-not-allowed'}`}>
                   <Send size={20} />
                </button>
             </div>
-
           </div>
           <p className="text-center text-[12px] text-[#8e918f] mt-4 font-medium">
              {BRAND_NAME} can make mistakes. Please verify important information.
