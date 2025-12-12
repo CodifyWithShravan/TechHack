@@ -164,7 +164,9 @@ function MainLayout({ session }) {
       const response = await fetch('https://unimind-lx09.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({ question: text,
+          user_id: session.user.id
+         }),
       });
       const data = await response.json();
       
