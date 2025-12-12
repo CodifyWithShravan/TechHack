@@ -296,20 +296,26 @@ function ChatInterface({ session }) {
                               <div className="prose prose-invert prose-p:leading-7 prose-li:marker:text-gray-500 max-w-none">
                                 <ReactMarkdown>{msg.text}</ReactMarkdown>
                                 
-                                {/* --- DISPLAY SOURCES --- */}
-                                {msg.sources && msg.sources.length > 0 && (
-                                  <div className="mt-4 pt-3 border-t border-[#333]">
-                                    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources:</p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {msg.sources.map((src, i) => (
-                                        <div key={i} className="flex items-center gap-1.5 bg-[#131314] border border-[#333] px-2 py-1.5 rounded-md text-xs text-blue-400">
-                                          <FileText size={12} />
-                                          <span className="truncate max-w-[200px]">{src}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
+                                {/* --- DISPLAY SOURCES (CLICKABLE) --- */}
+{msg.sources && msg.sources.length > 0 && (
+  <div className="mt-4 pt-3 border-t border-[#333]">
+    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources (Click to open):</p>
+    <div className="flex flex-wrap gap-2">
+      {msg.sources.map((src, i) => (
+        <a 
+          key={i} 
+          href={`https://unimind-lx09.onrender.com/files/${src}`} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 bg-[#2a2b2e] hover:bg-[#333] border border-[#333] hover:border-blue-500 px-3 py-1.5 rounded-full text-xs text-blue-400 transition-all cursor-pointer no-underline"
+        >
+          <FileText size={12} />
+          <span className="truncate max-w-[200px] font-medium">{src}</span>
+        </a>
+      ))}
+    </div>
+  </div>
+)}
                               </div>
                             ) : (
                               <p>{msg.text}</p>

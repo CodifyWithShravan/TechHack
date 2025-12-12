@@ -3,6 +3,7 @@ import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles  # <--- NEW IMPORT
 from dotenv import load_dotenv
 
 # AI & LangChain Libraries
@@ -13,7 +14,6 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from supabase.client import create_client, Client
 
-# 1. Load Keys
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -22,7 +22,11 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 app = FastAPI()
 
-# 2. Setup Security (CORS)
+# 1. SETUP PUBLIC FOLDER FOR PDFs
+# This creates a folder to store files so they can be downloaded later
+os.makedirs("uploaded_files", exist_ok=True)
+app.mount("/files", StaticFiles(directory="uploaded_files"), name="files")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,17 +35,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 3. Setup AI Models
-llm = ChatGroq(
-    model="llama-3.1-8b-instant",
-    api_key=GROQ_API_KEY
-)
-
-embeddings = GoogleGenerativeAIEmbeddings(
-    model="models/text-embedding-004",
-    google_api_key=GOOGLE_API_KEY
-)
-
+llm = ChatGroq(model="llama-3.1-8b-instant", api_key=GROQ_API_KEY)
+embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=GOOGLE_API_KEY)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 vector_store = SupabaseVectorStore(
     client=supabase,
@@ -53,38 +48,32 @@ vector_store = SupabaseVectorStore(
 class ChatRequest(BaseModel):
     question: str
 
-# --- 4. UPLOAD ENDPOINT ---
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
     try:
-        # A. Save the file temporarily
-        file_path = f"temp_{file.filename}"
+        # A. Save the file PERMANENTLY to the public folder
+        file_path = f"uploaded_files/{file.filename}"
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        print(f"📄 Processing: {file.filename}")
+        print(f"📄 Saved & Processing: {file.filename}")
 
         # B. Load and Split PDF
         loader = PyPDFLoader(file_path)
         docs = loader.load()
         
-        # --- NEW: Add Metadata ---
+        # Save simple filename in metadata
         for doc in docs:
             doc.metadata["source"] = file.filename
 
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
-        )
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         splits = text_splitter.split_documents(docs)
 
-        # C. Add to Supabase (Learn it)
-        print("   🧠 Learning new knowledge...")
+        # C. Add to Supabase
         vector_store.add_documents(splits)
 
-        # D. Cleanup
-        os.remove(file_path)
-        print("✅ Success! Document learned.")
+        # D. DO NOT DELETE THE FILE! (Removed os.remove)
+        print("✅ Success! Document learned and saved.")
 
         return {"message": "Successfully learned the document!", "filename": file.filename}
 
@@ -92,16 +81,10 @@ async def upload_document(file: UploadFile = File(...)):
         print(f"❌ Upload Error: {e}")
         return {"message": f"Error: {str(e)}"}
 
-# --- 5. CHAT ENDPOINT ---
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    print(f"📩 Question: {request.question}")
-    
     try:
-        # 1. Convert question to numbers
         query_vector = embeddings.embed_query(request.question)
-
-        # 2. Search Supabase
         response = supabase.rpc("match_documents", {
             "query_embedding": query_vector,
             "match_threshold": 0.3, 
@@ -112,32 +95,26 @@ async def chat_endpoint(request: ChatRequest):
         if not matches:
             return {"answer": "I don't have information on that yet. Try uploading a relevant PDF!", "sources": []}
         
-        # --- NEW: Extract Sources & Context ---
         context_text = ""
         unique_sources = set()
         
         for item in matches:
             context_text += item['content'] + "\n\n"
-            # Get filename from metadata, default to 'Unknown' if missing
+            # Get just the filename (remove 'documents/' or 'uploaded_files/' path if present)
             meta = item.get('metadata', {})
-            source = meta.get('source', 'Unknown Document')
-            unique_sources.add(source)
+            raw_source = meta.get('source', 'Unknown')
+            clean_source = os.path.basename(raw_source) 
+            unique_sources.add(clean_source)
 
-        # 3. Ask AI
         prompt = f"""
         You are a helpful university assistant.
         Answer the question based ONLY on the following context.
-        
-        <context>
-        {context_text}
-        </context>
-
+        <context>{context_text}</context>
         Question: {request.question}
         """
         
         ai_response = llm.invoke(prompt)
         
-        # Return Answer AND Sources
         return {
             "answer": ai_response.content,
             "sources": list(unique_sources)
