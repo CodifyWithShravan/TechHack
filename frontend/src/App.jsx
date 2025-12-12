@@ -4,7 +4,7 @@ import Auth from './Auth';
 import Profile from './Profile'; 
 import Vault from './Vault';
 import Home from './Home'; // <--- IMPORT HOME
-import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles, FileText, Archive, MessageSquare, Clock } from 'lucide-react';
+import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles, FileText, Archive, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,9 +23,9 @@ export default function App() {
 
 function MainLayout({ session }) {
   // --- STATE ---
-  const [currentView, setCurrentView] = useState('home'); // 'home', 'chat', 'profile', 'vault'
+  const [currentView, setCurrentView] = useState('home'); // Default to HOME
   const [sessionId, setSessionId] = useState(null);
-  const [chatHistory, setChatHistory] = useState([]); // List of past sessions
+  const [chatHistory, setChatHistory] = useState([]); 
   const [messages, setMessages] = useState([]);
   const [vaultSuggestions, setVaultSuggestions] = useState([]);
   
@@ -41,7 +41,7 @@ function MainLayout({ session }) {
   const rawName = session.user.email.split('@')[0];
   const userName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-  // --- INITIAL LOAD ---
+  // --- INITIAL DATA LOAD ---
   useEffect(() => {
     fetchChatHistory();
     fetchVaultSuggestions();
@@ -57,7 +57,7 @@ function MainLayout({ session }) {
     if (data) setChatHistory(data);
   };
 
-  // --- FETCH REAL-TIME SUGGESTIONS (FROM VAULT) ---
+  // --- FETCH REAL-TIME VAULT SUGGESTIONS ---
   const fetchVaultSuggestions = async () => {
     const { data } = await supabase
       .from('vault_items')
@@ -67,21 +67,21 @@ function MainLayout({ session }) {
     if (data) setVaultSuggestions(data);
   };
 
-  // --- LOAD MESSAGES FOR SPECIFIC SESSION ---
+  // --- LOAD MESSAGES WHEN SESSION CHANGES ---
   useEffect(() => {
     if (currentView === 'chat' && sessionId) {
       const loadMessages = async () => {
         const { data } = await supabase
           .from('messages')
           .select('*')
-          .eq('session_id', sessionId) // Only load messages for this session
+          .eq('session_id', sessionId)
           .order('created_at', { ascending: true });
         
         if (data) {
           const formatted = data.map(msg => ({
             role: msg.is_bot ? 'bot' : 'user',
             text: msg.text,
-            sources: [] // We aren't storing sources in DB yet, keeping it simple
+            sources: [] // (Future: store sources in DB)
           }));
           setMessages(formatted);
         } else {
@@ -100,37 +100,32 @@ function MainLayout({ session }) {
 
   // --- CREATE NEW SESSION ---
   const startNewChat = async () => {
-    // 1. Create a session in DB
-    const { data, error } = await supabase
-      .from('chat_sessions')
-      .insert({ user_id: session.user.id, title: 'New Conversation' })
-      .select()
-      .single();
-    
-    if (data) {
-      setSessionId(data.id);
-      setMessages([]);
-      setCurrentView('chat');
-      setMobileMenuOpen(false);
-      fetchChatHistory(); // Refresh sidebar
-    }
+    // Optimistic UI update
+    setMessages([]);
+    setSessionId(null);
+    setCurrentView('chat');
+    setMobileMenuOpen(false);
   };
 
   // --- SAVE MESSAGE ---
-  const saveMessageToDB = async (text, isBot, currentSessionId) => {
-    if (!currentSessionId) return;
+  const saveMessageToDB = async (text, isBot, activeSessionId) => {
+    if (!activeSessionId) return;
     await supabase.from('messages').insert({
       user_id: session.user.id,
-      session_id: currentSessionId,
+      session_id: activeSessionId,
       text: text,
       is_bot: isBot
     });
     
-    // Update session title if it's the first user message
-    if (!isBot && messages.length === 0) {
-       const shortTitle = text.slice(0, 30) + (text.length > 30 ? '...' : '');
-       await supabase.from('chat_sessions').update({ title: shortTitle }).eq('id', currentSessionId);
-       fetchChatHistory();
+    // Rename session if it's the first message
+    if (!isBot) {
+       // Only rename if it's a new generic session
+       const { data } = await supabase.from('chat_sessions').select('title').eq('id', activeSessionId).single();
+       if (data && (data.title === 'New Conversation' || data.title.startsWith('Upload:'))) {
+          const shortTitle = text.slice(0, 30) + (text.length > 30 ? '...' : '');
+          await supabase.from('chat_sessions').update({ title: shortTitle }).eq('id', activeSessionId);
+          fetchChatHistory();
+       }
     }
   };
 
@@ -140,17 +135,18 @@ function MainLayout({ session }) {
     
     let activeSessionId = sessionId;
 
-    // If on home page or no session, start one automatically
+    // 1. Create Session if needed
     if (currentView !== 'chat' || !activeSessionId) {
        const { data } = await supabase
         .from('chat_sessions')
         .insert({ user_id: session.user.id, title: text.slice(0, 30) })
         .select().single();
+       
        if (data) {
          activeSessionId = data.id;
          setSessionId(data.id);
          setCurrentView('chat');
-         fetchChatHistory();
+         fetchChatHistory(); // Update sidebar immediately
        }
     }
 
@@ -184,12 +180,12 @@ function MainLayout({ session }) {
     }
   };
 
-  // --- HANDLE FILE UPLOAD ---
+  // --- HANDLE UPLOAD ---
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
     
-    // Auto-start chat if needed
+    // Auto-create session for upload context
     let activeSessionId = sessionId;
     if (currentView !== 'chat' || !activeSessionId) {
         const { data } = await supabase.from('chat_sessions').insert({ user_id: session.user.id, title: `Upload: ${file.name}` }).select().single();
@@ -215,8 +211,6 @@ function MainLayout({ session }) {
          newMsgs[newMsgs.length - 1].text = replyText;
          return newMsgs;
       });
-      
-      // We don't usually save the "uploading" message to DB history to keep it clean
 
     } catch (error) {
       setMessages(prev => [...prev, { role: 'bot', text: "❌ Error uploading file." }]);
@@ -225,7 +219,24 @@ function MainLayout({ session }) {
     }
   };
 
-  const startListening = () => { /* ... keep existing voice logic ... */ };
+  const startListening = () => { /* (Keep voice logic same as before) */ 
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      setIsListening(true);
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        sendMessage(transcript);
+        setIsListening(false);
+      };
+      recognition.onend = () => setIsListening(false);
+      recognition.start();
+    } else { alert("Voice not supported."); }
+  };
 
   return (
     <div className="flex h-screen bg-[#131314] text-[#e3e3e3] font-sans overflow-hidden relative">
@@ -264,13 +275,13 @@ function MainLayout({ session }) {
           </button>
 
           {/* --- CHAT HISTORY LIST --- */}
-          <div className="flex-1 overflow-y-auto mb-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto mb-4 custom-scrollbar pr-2">
             <div className="px-2 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Recent Chats</div>
             {chatHistory.map((chat) => (
               <button
                 key={chat.id}
                 onClick={() => { setSessionId(chat.id); setCurrentView('chat'); setMobileMenuOpen(false); }}
-                className={`w-full text-left px-3 py-2 text-sm rounded-lg truncate flex items-center gap-2 mb-1 ${sessionId === chat.id && currentView === 'chat' ? 'bg-[#333] text-white' : 'text-[#999] hover:bg-[#2a2b2e] hover:text-white'}`}
+                className={`w-full text-left px-3 py-2 text-sm rounded-lg truncate flex items-center gap-2 mb-1 transition-all ${sessionId === chat.id && currentView === 'chat' ? 'bg-[#333] text-white border border-gray-600' : 'text-[#999] hover:bg-[#2a2b2e] hover:text-white border border-transparent'}`}
               >
                 <MessageSquare size={14} />
                 <span className="truncate">{chat.title}</span>
@@ -278,10 +289,10 @@ function MainLayout({ session }) {
             ))}
           </div>
 
-          {/* --- REAL-TIME SUGGESTIONS (FROM VAULT) --- */}
+          {/* --- VAULT SUGGESTIONS --- */}
           {vaultSuggestions.length > 0 && (
             <div className="space-y-1 mt-2 border-t border-[#333] pt-4 mb-4">
-               <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Ask about your files</div>
+               <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">From your Vault</div>
                {vaultSuggestions.map((file, i) => (
                  <button key={i} onClick={() => sendMessage(`Explain ${file.filename}`)} className="w-full text-left px-3 py-2 text-xs text-[#c4c7c5] hover:bg-[#2a2b2e] rounded-lg truncate flex items-center gap-2">
                     <FileText size={12} /> {file.filename}
@@ -326,6 +337,10 @@ function MainLayout({ session }) {
                       <h1 className="text-4xl md:text-6xl font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-red-400 text-transparent bg-clip-text pb-2">Hello, {userName}.</h1>
                       <h2 className="text-2xl md:text-3xl font-medium text-[#444746] mt-2">What can I help with?</h2>
                     </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-xl px-2">
+                      <button onClick={() => sendMessage("What is the syllabus for Java?")} className="text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-4 rounded-xl border border-transparent hover:border-[#444] transition-all"><Compass size={24} className="text-blue-400 mb-2" /><p className="text-white font-medium">Explain Syllabus</p><p className="text-gray-500 text-xs">for Java Programming</p></button>
+                      <button onClick={() => sendMessage("What are the attendance rules?")} className="text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-4 rounded-xl border border-transparent hover:border-[#444] transition-all"><GraduationCap size={24} className="text-purple-400 mb-2" /><p className="text-white font-medium">Check Rules</p><p className="text-gray-500 text-xs">attendance & exams</p></button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-6 py-6">
@@ -342,8 +357,8 @@ function MainLayout({ session }) {
                                     <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources (Click to open):</p>
                                     <div className="flex flex-wrap gap-2">
                                       {msg.sources.map((src, i) => (
-                                        <a key={i} href={`https://unimind-lx09.onrender.com/files/${src}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-[#2a2b2e] hover:bg-[#333] border border-[#333] hover:border-blue-500 px-3 py-1.5 rounded-full text-xs text-blue-400 transition-all cursor-pointer no-underline">
-                                          <FileText size={12} /> <span className="truncate max-w-[200px] font-medium">{src}</span>
+                                        <a key={i} href={src.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-[#131314] border border-[#333] px-3 py-1.5 rounded-full text-xs text-blue-400 transition-all cursor-pointer no-underline">
+                                          <FileText size={12} /> <span className="truncate max-w-[200px] font-medium">{src.name}</span>
                                         </a>
                                       ))}
                                     </div>
