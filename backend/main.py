@@ -98,7 +98,7 @@ async def chat_endpoint(request: ChatRequest):
         # Reduced count to 3 (was 5) so it doesn't grab random files
         response = supabase.rpc("match_documents", {
             "query_embedding": query_vector,
-            "match_threshold": 0.5, 
+            "match_threshold": 0.6, 
             "match_count": 3
         }).execute()
 

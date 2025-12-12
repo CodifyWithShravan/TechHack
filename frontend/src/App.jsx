@@ -3,8 +3,8 @@ import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import Profile from './Profile'; 
 import Vault from './Vault';
-import Home from './Home'; // <--- IMPORT HOME
-import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles, FileText, Archive, MessageSquare } from 'lucide-react';
+import Home from './Home'; 
+import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles, FileText, Archive, MessageSquare, Clock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,7 +23,7 @@ export default function App() {
 
 function MainLayout({ session }) {
   // --- STATE ---
-  const [currentView, setCurrentView] = useState('home'); // Default to HOME
+  const [currentView, setCurrentView] = useState('home'); // 'home', 'chat', 'profile', 'vault'
   const [sessionId, setSessionId] = useState(null);
   const [chatHistory, setChatHistory] = useState([]); 
   const [messages, setMessages] = useState([]);
@@ -41,7 +41,7 @@ function MainLayout({ session }) {
   const rawName = session.user.email.split('@')[0];
   const userName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-  // --- INITIAL DATA LOAD ---
+  // --- INITIAL LOAD ---
   useEffect(() => {
     fetchChatHistory();
     fetchVaultSuggestions();
@@ -67,21 +67,21 @@ function MainLayout({ session }) {
     if (data) setVaultSuggestions(data);
   };
 
-  // --- LOAD MESSAGES WHEN SESSION CHANGES ---
+  // --- LOAD MESSAGES FOR SPECIFIC SESSION ---
   useEffect(() => {
     if (currentView === 'chat' && sessionId) {
       const loadMessages = async () => {
         const { data } = await supabase
           .from('messages')
           .select('*')
-          .eq('session_id', sessionId)
+          .eq('session_id', sessionId) 
           .order('created_at', { ascending: true });
         
         if (data) {
           const formatted = data.map(msg => ({
             role: msg.is_bot ? 'bot' : 'user',
             text: msg.text,
-            sources: [] // (Future: store sources in DB)
+            sources: [] // Sources will be populated for new chats via API response
           }));
           setMessages(formatted);
         } else {
@@ -100,11 +100,19 @@ function MainLayout({ session }) {
 
   // --- CREATE NEW SESSION ---
   const startNewChat = async () => {
-    // Optimistic UI update
-    setMessages([]);
-    setSessionId(null);
-    setCurrentView('chat');
-    setMobileMenuOpen(false);
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .insert({ user_id: session.user.id, title: 'New Conversation' })
+      .select()
+      .single();
+    
+    if (data) {
+      setSessionId(data.id);
+      setMessages([]);
+      setCurrentView('chat');
+      setMobileMenuOpen(false);
+      fetchChatHistory(); 
+    }
   };
 
   // --- SAVE MESSAGE ---
@@ -117,15 +125,11 @@ function MainLayout({ session }) {
       is_bot: isBot
     });
     
-    // Rename session if it's the first message
-    if (!isBot) {
-       // Only rename if it's a new generic session
-       const { data } = await supabase.from('chat_sessions').select('title').eq('id', activeSessionId).single();
-       if (data && (data.title === 'New Conversation' || data.title.startsWith('Upload:'))) {
-          const shortTitle = text.slice(0, 30) + (text.length > 30 ? '...' : '');
-          await supabase.from('chat_sessions').update({ title: shortTitle }).eq('id', activeSessionId);
-          fetchChatHistory();
-       }
+    // Rename session if first message
+    if (!isBot && messages.length === 0) {
+       const shortTitle = text.slice(0, 30) + (text.length > 30 ? '...' : '');
+       await supabase.from('chat_sessions').update({ title: shortTitle }).eq('id', activeSessionId);
+       fetchChatHistory();
     }
   };
 
@@ -135,18 +139,17 @@ function MainLayout({ session }) {
     
     let activeSessionId = sessionId;
 
-    // 1. Create Session if needed
+    // If on home page or no session, start one automatically
     if (currentView !== 'chat' || !activeSessionId) {
        const { data } = await supabase
         .from('chat_sessions')
         .insert({ user_id: session.user.id, title: text.slice(0, 30) })
         .select().single();
-       
        if (data) {
          activeSessionId = data.id;
          setSessionId(data.id);
          setCurrentView('chat');
-         fetchChatHistory(); // Update sidebar immediately
+         fetchChatHistory();
        }
     }
 
@@ -180,12 +183,11 @@ function MainLayout({ session }) {
     }
   };
 
-  // --- HANDLE UPLOAD ---
+  // --- HANDLE FILE UPLOAD ---
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
     
-    // Auto-create session for upload context
     let activeSessionId = sessionId;
     if (currentView !== 'chat' || !activeSessionId) {
         const { data } = await supabase.from('chat_sessions').insert({ user_id: session.user.id, title: `Upload: ${file.name}` }).select().single();
@@ -219,7 +221,7 @@ function MainLayout({ session }) {
     }
   };
 
-  const startListening = () => { /* (Keep voice logic same as before) */ 
+  const startListening = () => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
@@ -274,7 +276,7 @@ function MainLayout({ session }) {
             <Plus size={18} /> New chat
           </button>
 
-          {/* --- CHAT HISTORY LIST --- */}
+          {/* CHAT HISTORY */}
           <div className="flex-1 overflow-y-auto mb-4 custom-scrollbar pr-2">
             <div className="px-2 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Recent Chats</div>
             {chatHistory.map((chat) => (
@@ -289,7 +291,7 @@ function MainLayout({ session }) {
             ))}
           </div>
 
-          {/* --- VAULT SUGGESTIONS --- */}
+          {/* VAULT SUGGESTIONS */}
           {vaultSuggestions.length > 0 && (
             <div className="space-y-1 mt-2 border-t border-[#333] pt-4 mb-4">
                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">From your Vault</div>
@@ -352,18 +354,44 @@ function MainLayout({ session }) {
                             {msg.role === 'bot' ? (
                               <div className="prose prose-invert prose-p:leading-7 prose-li:marker:text-gray-500 max-w-none">
                                 <ReactMarkdown>{msg.text}</ReactMarkdown>
-                                {msg.sources && msg.sources.length > 0 && (
-                                  <div className="mt-4 pt-3 border-t border-[#333]">
-                                    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources (Click to open):</p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {msg.sources.map((src, i) => (
-                                        <a key={i} href={src.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-[#131314] border border-[#333] px-3 py-1.5 rounded-full text-xs text-blue-400 transition-all cursor-pointer no-underline">
-                                          <FileText size={12} /> <span className="truncate max-w-[200px] font-medium">{src.name}</span>
-                                        </a>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
+                                
+                                {/* --- DISPLAY SOURCES (CORRECTED) --- */}
+{msg.sources && msg.sources.length > 0 && (
+  <div className="mt-4 pt-3 border-t border-[#333]">
+    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources (Click to open):</p>
+    <div className="flex flex-wrap gap-2">
+      {msg.sources.map((src, i) => {
+        // 1. Get the URL. If it's an object, use .url. If string, it's broken.
+        // We fallback to '#' to prevent crashing.
+        const fileUrl = (typeof src === 'object' && src.url) ? src.url : '#';
+        
+        // 2. Get the Name.
+        const fileName = (typeof src === 'object' && src.name) ? src.name : src;
+
+        return (
+          <a 
+            key={i} 
+            href={fileUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className={`flex items-center gap-1.5 bg-[#2a2b2e] border border-[#333] px-3 py-1.5 rounded-full text-xs transition-all no-underline ${fileUrl !== '#' ? 'hover:bg-[#333] hover:border-blue-500 text-blue-400 cursor-pointer' : 'opacity-50 cursor-not-allowed text-gray-500'}`}
+            onClick={(e) => { 
+              if(fileUrl === '#') {
+                e.preventDefault(); 
+                alert("This file is from an old chat and cannot be opened. Please re-upload.");
+              }
+            }} 
+          >
+            <FileText size={12} />
+            <span className="truncate max-w-[200px] font-medium">{fileName}</span>
+          </a>
+        );
+      })}
+    </div>
+  </div>
+)}
+                                {/* --- END SOURCES --- */}
+
                               </div>
                             ) : (<p>{msg.text}</p>)}
                           </div>
