@@ -53,7 +53,7 @@ vector_store = SupabaseVectorStore(
 class ChatRequest(BaseModel):
     question: str
 
-# --- 4. NEW: UPLOAD ENDPOINT ---
+# --- 4. UPLOAD ENDPOINT ---
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
     try:
@@ -68,6 +68,10 @@ async def upload_document(file: UploadFile = File(...)):
         loader = PyPDFLoader(file_path)
         docs = loader.load()
         
+        # --- NEW: Add Metadata ---
+        for doc in docs:
+            doc.metadata["source"] = file.filename
+
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200
@@ -88,7 +92,7 @@ async def upload_document(file: UploadFile = File(...)):
         print(f"❌ Upload Error: {e}")
         return {"message": f"Error: {str(e)}"}
 
-# --- 5. CHAT ENDPOINT (Same as before) ---
+# --- 5. CHAT ENDPOINT ---
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     print(f"📩 Question: {request.question}")
@@ -106,9 +110,18 @@ async def chat_endpoint(request: ChatRequest):
 
         matches = response.data
         if not matches:
-            return {"answer": "I don't have information on that yet. Try uploading a relevant PDF!"}
+            return {"answer": "I don't have information on that yet. Try uploading a relevant PDF!", "sources": []}
         
-        context_text = "\n\n".join([item['content'] for item in matches])
+        # --- NEW: Extract Sources & Context ---
+        context_text = ""
+        unique_sources = set()
+        
+        for item in matches:
+            context_text += item['content'] + "\n\n"
+            # Get filename from metadata, default to 'Unknown' if missing
+            meta = item.get('metadata', {})
+            source = meta.get('source', 'Unknown Document')
+            unique_sources.add(source)
 
         # 3. Ask AI
         prompt = f"""
@@ -123,8 +136,13 @@ async def chat_endpoint(request: ChatRequest):
         """
         
         ai_response = llm.invoke(prompt)
-        return {"answer": ai_response.content}
+        
+        # Return Answer AND Sources
+        return {
+            "answer": ai_response.content,
+            "sources": list(unique_sources)
+        }
 
     except Exception as e:
         print(f"❌ Error: {e}")
-        return {"answer": "Sorry, I encountered an error."}
+        return {"answer": "Sorry, I encountered an error.", "sources": []}
