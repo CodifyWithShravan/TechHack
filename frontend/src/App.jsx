@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import Profile from './Profile'; 
-import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles, FileText } from 'lucide-react';
+import Vault from './Vault'; // <--- IMPORT VAULT
+import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles, FileText, Archive } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -16,11 +17,12 @@ export default function App() {
   }, []);
 
   if (!session) return <Auth />;
-  return <ChatInterface session={session} />;
+  return <MainLayout session={session} />;
 }
 
-function ChatInterface({ session }) {
-  const [currentView, setCurrentView] = useState('chat'); // 'chat' or 'profile'
+function MainLayout({ session }) {
+  // --- STATE MANAGEMENT ---
+  const [currentView, setCurrentView] = useState('chat'); // 'chat', 'profile', or 'vault'
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +36,7 @@ function ChatInterface({ session }) {
   const rawName = session.user.email.split('@')[0];
   const userName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-  // --- LOAD HISTORY ---
+  // --- LOAD HISTORY (Only when in Chat Mode) ---
   useEffect(() => {
     if (currentView === 'chat') {
       const loadHistory = async () => {
@@ -47,8 +49,6 @@ function ChatInterface({ session }) {
           const formatted = data.map(msg => ({
             role: msg.is_bot ? 'bot' : 'user',
             text: msg.text,
-            // Note: We aren't saving sources to DB yet, so history won't show chips for old chats.
-            // But they will appear for new chats in this session!
             sources: [] 
           }));
           setMessages(formatted);
@@ -58,6 +58,7 @@ function ChatInterface({ session }) {
     }
   }, [currentView]);
 
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, currentView]);
@@ -76,7 +77,7 @@ function ChatInterface({ session }) {
     const file = event.target.files[0];
     if (!file) return;
     setIsUploading(true);
-    setCurrentView('chat');
+    setCurrentView('chat'); // Switch to chat if uploading for AI analysis
 
     const loadingText = `📄 **Reading ${file.name}...**`;
     setMessages(prev => [...prev, { role: 'bot', text: loadingText }]);
@@ -150,17 +151,16 @@ function ChatInterface({ session }) {
       });
       const data = await response.json();
       
-      // --- UPDATE: Add sources to message state ---
       setMessages((prev) => [...prev, { 
         role: 'bot', 
         text: data.answer, 
-        sources: data.sources || [] // Capture sources from backend
+        sources: data.sources || [] 
       }]);
       
       saveMessageToDB(data.answer, true);
 
     } catch (error) {
-      setMessages((prev) => [...prev, { role: 'bot', text: "❌ Connection Error. Backend might be sleeping." }]);
+      setMessages((prev) => [...prev, { role: 'bot', text: "❌ Connection Error." }]);
     } finally {
       setIsLoading(false);
     }
@@ -201,7 +201,10 @@ function ChatInterface({ session }) {
             <span className="font-semibold text-lg tracking-tight text-white">{BRAND_NAME}</span>
           </div>
           
-          <button onClick={() => { setCurrentView('chat'); clearChat(); setMobileMenuOpen(false); }} className="flex items-center gap-3 w-full bg-[#2a2b2e] hover:bg-[#333] px-4 py-3 rounded-full text-sm font-medium transition-all mb-6 text-white border border-[#333]">
+          <button 
+            onClick={() => { setCurrentView('chat'); clearChat(); setMobileMenuOpen(false); }} 
+            className="flex items-center gap-3 w-full bg-[#2a2b2e] hover:bg-[#333] px-4 py-3 rounded-full text-sm font-medium transition-all mb-6 text-white border border-[#333]"
+          >
             <Plus size={18} /> New chat
           </button>
 
@@ -216,6 +219,16 @@ function ChatInterface({ session }) {
           </div>
 
           <div className="mt-auto pt-4 border-t border-[#333]">
+            {/* --- VAULT BUTTON --- */}
+            <button 
+              onClick={() => { setCurrentView('vault'); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 text-sm transition-colors mb-2 ${currentView === 'vault' ? 'bg-[#333] text-white' : 'text-[#c4c7c5] hover:bg-[#2a2b2e]'}`}
+            >
+              <Archive size={18} className="text-green-400" />
+              <span className="font-medium">My Vault</span>
+            </button>
+
+            {/* --- PROFILE BUTTON --- */}
             <button 
               onClick={() => { setCurrentView('profile'); setMobileMenuOpen(false); }}
               className={`w-full text-left px-2 py-2 rounded-lg flex items-center gap-3 text-sm transition-colors ${currentView === 'profile' ? 'bg-[#333]' : 'hover:bg-[#2a2b2e]'}`}
@@ -228,6 +241,7 @@ function ChatInterface({ session }) {
                 <div className="text-xs text-green-400">View Profile</div>
               </div>
             </button>
+
             <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-3 text-sm text-red-400 hover:bg-[#2a2b2e] rounded-lg mt-2 transition-colors">
               <LogOut size={16} /> Sign out
             </button>
@@ -235,14 +249,20 @@ function ChatInterface({ session }) {
         </div>
       </div>
 
-      {/* MAIN CONTENT AREA */}
+      {/* --- MAIN CONTENT AREA --- */}
       <div className="flex-1 flex flex-col relative w-full h-full bg-[#131314]">
         
+        {/* CONDITIONAL RENDERING */}
         {currentView === 'profile' ? (
           <div className="flex-1 overflow-y-auto w-full scroll-smooth pt-16 md:pt-0">
              <Profile session={session} />
           </div>
+        ) : currentView === 'vault' ? (
+          <div className="flex-1 overflow-y-auto w-full scroll-smooth pt-16 md:pt-0">
+             <Vault session={session} />
+          </div>
         ) : (
+          /* --- CHAT VIEW --- */
           <>
             <div className="flex-1 overflow-y-auto w-full scroll-smooth pt-16 md:pt-0 pb-32">
               <div className="max-w-3xl mx-auto px-4 md:px-0 min-h-full flex flex-col">
@@ -296,26 +316,25 @@ function ChatInterface({ session }) {
                               <div className="prose prose-invert prose-p:leading-7 prose-li:marker:text-gray-500 max-w-none">
                                 <ReactMarkdown>{msg.text}</ReactMarkdown>
                                 
-                                {/* --- DISPLAY SOURCES (CLICKABLE) --- */}
-{msg.sources && msg.sources.length > 0 && (
-  <div className="mt-4 pt-3 border-t border-[#333]">
-    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources (Click to open):</p>
-    <div className="flex flex-wrap gap-2">
-      {msg.sources.map((src, i) => (
-        <a 
-          key={i} 
-          href={`https://unimind-lx09.onrender.com/files/${src}`} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 bg-[#2a2b2e] hover:bg-[#333] border border-[#333] hover:border-blue-500 px-3 py-1.5 rounded-full text-xs text-blue-400 transition-all cursor-pointer no-underline"
-        >
-          <FileText size={12} />
-          <span className="truncate max-w-[200px] font-medium">{src}</span>
-        </a>
-      ))}
-    </div>
-  </div>
-)}
+                                {msg.sources && msg.sources.length > 0 && (
+                                  <div className="mt-4 pt-3 border-t border-[#333]">
+                                    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources (Click to open):</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {msg.sources.map((src, i) => (
+                                        <a 
+                                          key={i} 
+                                          href={`https://unimind-lx09.onrender.com/files/${src}`} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 bg-[#131314] border border-[#333] px-3 py-1.5 rounded-full text-xs text-blue-400 transition-all cursor-pointer no-underline"
+                                        >
+                                          <FileText size={12} />
+                                          <span className="truncate max-w-[200px] font-medium">{src}</span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <p>{msg.text}</p>
