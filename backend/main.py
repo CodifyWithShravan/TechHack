@@ -91,24 +91,30 @@ async def chat_endpoint(request: ChatRequest):
         
         # STEP 1: Intent Classification
         # We ask the AI to categorize the user's request.
+# STEP 1: Intent Classification (UPDATED)
         intent_prompt = f"""
         Current Date/Time: {current_time}
         User Query: "{request.question}"
         
-        Analyze the intent.
+        Task: Classify if the user has an event, task, or deadline they want to track.
         
-        If the user wants to schedule an event/task/reminder:
-        Return ONLY valid JSON:
+        RULES:
+        - If the user says "I have a [event] on [date]", it IS a schedule request.
+        - If the user says "Remind me to...", it IS a schedule request.
+        - If the user says "Schedule...", it IS a schedule request.
+        
+        Response Format (JSON ONLY):
+        If YES (Schedule):
         {{
             "action": "schedule",
-            "title": "Short event title",
+            "title": "Extracted Title",
             "start_time": "YYYY-MM-DDTHH:MM:SS",
-            "end_time": "YYYY-MM-DDTHH:MM:SS" (default to 1 hour duration),
+            "end_time": "YYYY-MM-DDTHH:MM:SS",
             "is_important": true/false
         }}
         
-        If the user is asking a question about documents or general knowledge:
-        Return ONLY valid JSON: {{ "action": "qa" }}
+        If NO (General Question/Chat):
+        {{ "action": "qa" }}
         """
         
         raw_response = llm.invoke(intent_prompt).content
