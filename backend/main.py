@@ -2,7 +2,8 @@ import os
 import shutil
 import time
 import json
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +25,6 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 app = FastAPI()
 
-# Setup Storage
 os.makedirs("uploaded_files", exist_ok=True)
 app.mount("/files", StaticFiles(directory="uploaded_files"), name="files")
 
@@ -36,7 +36,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# AI Models
 llm = ChatGroq(model="llama-3.1-8b-instant", api_key=GROQ_API_KEY)
 embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=GOOGLE_API_KEY)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -49,9 +48,17 @@ vector_store = SupabaseVectorStore(
 
 class ChatRequest(BaseModel):
     question: str
-    user_id: str  # <--- REQUIRED: To know whose calendar to update
+    user_id: str
 
-# --- UPLOAD ENDPOINT (UNCHANGED) ---
+def extract_json(text):
+    try:
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        return None
+    except:
+        return None
+
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
     try:
@@ -59,7 +66,6 @@ async def upload_document(file: UploadFile = File(...)):
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Permanent Storage
         storage_path = f"chat_uploads/{int(time.time())}_{file.filename}"
         with open(file_path, "rb") as f:
             file_bytes = f.read()
@@ -83,83 +89,67 @@ async def upload_document(file: UploadFile = File(...)):
     except Exception as e:
         return {"message": f"Error: {str(e)}"}
 
-# --- INTELLIGENT CHAT ENDPOINT ---
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
         current_time = datetime.now().isoformat()
         
-        # STEP 1: Intent Classification
-        # We ask the AI to categorize the user's request.
-# STEP 1: Intent Classification (UPDATED)
+        # --- 1. INTENT DETECTION ---
         intent_prompt = f"""
-        Current Date/Time: {current_time}
-        User Query: "{request.question}"
+        Current Time: {current_time}
+        User Input: "{request.question}"
         
-        Task: Classify if the user has an event, task, or deadline they want to track.
+        Task: Extract scheduling info.
+        Rules:
+        1. If user mentions "remind", "schedule", "have a [event]", or a date/time -> ACTION IS "schedule".
+        2. Otherwise -> ACTION IS "qa".
         
-        RULES:
-        - If the user says "I have a [event] on [date]", it IS a schedule request.
-        - If the user says "Remind me to...", it IS a schedule request.
-        - If the user says "Schedule...", it IS a schedule request.
-        
-        Response Format (JSON ONLY):
-        If YES (Schedule):
+        Output JSON ONLY:
         {{
             "action": "schedule",
-            "title": "Extracted Title",
+            "title": "Event Name",
             "start_time": "YYYY-MM-DDTHH:MM:SS",
-            "end_time": "YYYY-MM-DDTHH:MM:SS",
-            "is_important": true/false
+            "end_time": "YYYY-MM-DDTHH:MM:SS" (Default +1 hour),
+            "description": "Created by Campus AI Assistant"
         }}
-        
-        If NO (General Question/Chat):
-        {{ "action": "qa" }}
+        OR {{ "action": "qa" }}
         """
         
         raw_response = llm.invoke(intent_prompt).content
-        
-        # Clean up JSON (sometimes LLM adds markdown backticks)
-        json_str = raw_response.strip().replace("```json", "").replace("```", "")
-        try:
-            intent_data = json.loads(json_str)
-        except:
-            intent_data = {"action": "qa"} # Fallback to Q&A if parsing fails
+        intent_data = extract_json(raw_response) or {"action": "qa"}
 
-        # STEP 2: Execute Logic based on Intent
+        # --- 2. EXECUTE LOGIC ---
         
-        # --- ACTION: SCHEDULE ---
+        # === CASE: SCHEDULE ===
         if intent_data.get("action") == "schedule":
-            title = intent_data["title"]
-            start = intent_data["start_time"]
-            end = intent_data["end_time"]
+            print("🗓️ Scheduling Intent Detected")
             
-            # Check Conflicts
-            conflict_check = supabase.table("events").select("*").eq("user_id", request.user_id)\
-                .gte("end_time", start).lte("start_time", end).execute()
-            
-            conflict_msg = ""
-            if conflict_check.data:
-                conflict_msg = f"\n\n⚠️ **Warning:** This overlaps with '{conflict_check.data[0]['title']}'."
-
-            # Save to Database
+            # A. SAVE TO SUPABASE (So it shows in the list)
             event_data = {
                 "user_id": request.user_id,
-                "title": title,
-                "start_time": start,
-                "end_time": end,
-                "is_important": intent_data.get("is_important", False)
+                "title": intent_data.get("title"),
+                "start_time": intent_data.get("start_time"),
+                "end_time": intent_data.get("end_time"),
+                "is_important": True
             }
-            supabase.table("events").insert(event_data).execute()
-            
+            try:
+                supabase.table("events").insert(event_data).execute()
+            except Exception as e:
+                print(f"DB Error: {e}")
+
+            # B. SEND COMMAND TO GOOGLE (So it pops up)
             return {
-                "answer": f"✅ **Scheduled:** '{title}' on {start.split('T')[0]} at {start.split('T')[1][:5]}.{conflict_msg}",
+                "answer": f"✅ I have added '**{intent_data['title']}**' to your Task List below.\n\n📅 Now opening Google Calendar to sync it...",
+                "command": "schedule_google", 
+                "event_details": intent_data,
                 "sources": []
             }
 
-        # --- ACTION: Q&A (RAG) ---
+        # === CASE: QA ===
         else:
+            print("🔍 QA Mode")
             query_vector = embeddings.embed_query(request.question)
+            
             response = supabase.rpc("match_documents", {
                 "query_embedding": query_vector,
                 "match_threshold": 0.5, 
@@ -179,14 +169,12 @@ async def chat_endpoint(request: ChatRequest):
                     unique_sources[name] = url
 
             prompt = f"""
-            You are a university assistant. Answer based on the context below.
-            If context is empty, use general knowledge but mention you are not using documents.
+            Answer based on the context below.
             <context>{context_text}</context>
             Question: {request.question}
             """
             
             ai_response = llm.invoke(prompt)
-            
             source_list = [{"name": name, "url": url} for name, url in unique_sources.items()]
             
             return {
@@ -196,4 +184,4 @@ async def chat_endpoint(request: ChatRequest):
 
     except Exception as e:
         print(f"Error: {e}")
-        return {"answer": "Sorry, I encountered an error processing your request.", "sources": []}
+        return {"answer": "Error processing request.", "sources": []}

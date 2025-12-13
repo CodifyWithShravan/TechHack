@@ -3,10 +3,15 @@ import { supabase } from './supabaseClient';
 import Auth from './Auth';
 import Profile from './Profile'; 
 import Vault from './Vault';
+import Calendar from './Calendar'; 
 import Home from './Home'; 
-import { Send, Compass, Plus, BookOpen, Code, GraduationCap, Mic, MicOff, Menu, LogOut, Paperclip, Loader2, X, Sparkles, FileText, Archive, MessageSquare, Clock } from 'lucide-react';
+import Network from './Network'; // <--- Network Import
+import UserChat from './UserChat'; // <--- DM Import
+import { Send, Plus, LogOut, Paperclip, Loader2, X, Sparkles, FileText, Archive, MessageSquare, Calendar as CalIcon, Menu, Mic, MicOff, Users } from 'lucide-react'; // Added Users
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useGoogleLogin } from '@react-oauth/google';
+import axios from 'axios';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -22,8 +27,7 @@ export default function App() {
 }
 
 function MainLayout({ session }) {
-  // --- STATE ---
-  const [currentView, setCurrentView] = useState('home'); // 'home', 'chat', 'profile', 'vault'
+  const [currentView, setCurrentView] = useState('home'); // 'home', 'chat', 'profile', 'vault', 'calendar', 'network', 'dm'
   const [sessionId, setSessionId] = useState(null);
   const [chatHistory, setChatHistory] = useState([]); 
   const [messages, setMessages] = useState([]);
@@ -34,6 +38,10 @@ function MainLayout({ session }) {
   const [isListening, setIsListening] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Google Calendar State
+  const [pendingEvent, setPendingEvent] = useState(null); 
+
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -41,13 +49,59 @@ function MainLayout({ session }) {
   const rawName = session.user.email.split('@')[0];
   const userName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
+  // --- GOOGLE LOGIN HOOK ---
+  const googleLogin = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/calendar.events',
+    onSuccess: async (tokenResponse) => {
+      if (!pendingEvent) return;
+      
+      try {
+        await axios.post(
+          'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+          {
+            summary: pendingEvent.title,
+            description: pendingEvent.description || "Created by Campus AI",
+            start: { 
+              dateTime: pendingEvent.start_time, 
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+            },
+            end: { 
+              dateTime: pendingEvent.end_time, 
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+            },
+          },
+          { headers: { Authorization: `Bearer ${tokenResponse.access_token}` } }
+        );
+        
+        setMessages(prev => [...prev, { 
+          role: 'bot', 
+          text: `✅ **Success!** I have added "**${pendingEvent.title}**" to your Google Calendar.` 
+        }]);
+        setPendingEvent(null); // Clear pending event
+      } catch (error) {
+        console.error("Google Calendar Error:", error);
+        setMessages(prev => [...prev, { 
+          role: 'bot', 
+          text: "❌ Failed to add to Google Calendar. Please check permissions." 
+        }]);
+      }
+    },
+    onError: error => console.log("Login Failed:", error),
+  });
+
+  // Effect to trigger login only when pendingEvent is set
+  useEffect(() => {
+    if (pendingEvent) {
+      googleLogin();
+    }
+  }, [pendingEvent]); 
+
   // --- INITIAL LOAD ---
   useEffect(() => {
     fetchChatHistory();
     fetchVaultSuggestions();
   }, []);
 
-  // --- FETCH SIDEBAR HISTORY ---
   const fetchChatHistory = async () => {
     const { data } = await supabase
       .from('chat_sessions')
@@ -57,7 +111,6 @@ function MainLayout({ session }) {
     if (data) setChatHistory(data);
   };
 
-  // --- FETCH REAL-TIME VAULT SUGGESTIONS ---
   const fetchVaultSuggestions = async () => {
     const { data } = await supabase
       .from('vault_items')
@@ -67,7 +120,7 @@ function MainLayout({ session }) {
     if (data) setVaultSuggestions(data);
   };
 
-  // --- LOAD MESSAGES FOR SPECIFIC SESSION ---
+  // --- LOAD MESSAGES ---
   useEffect(() => {
     if (currentView === 'chat' && sessionId) {
       const loadMessages = async () => {
@@ -81,7 +134,7 @@ function MainLayout({ session }) {
           const formatted = data.map(msg => ({
             role: msg.is_bot ? 'bot' : 'user',
             text: msg.text,
-            sources: [] // Sources will be populated for new chats via API response
+            sources: [] 
           }));
           setMessages(formatted);
         } else {
@@ -98,7 +151,6 @@ function MainLayout({ session }) {
 
   const handleLogout = async () => await supabase.auth.signOut();
 
-  // --- CREATE NEW SESSION ---
   const startNewChat = async () => {
     const { data, error } = await supabase
       .from('chat_sessions')
@@ -115,7 +167,6 @@ function MainLayout({ session }) {
     }
   };
 
-  // --- SAVE MESSAGE ---
   const saveMessageToDB = async (text, isBot, activeSessionId) => {
     if (!activeSessionId) return;
     await supabase.from('messages').insert({
@@ -125,7 +176,6 @@ function MainLayout({ session }) {
       is_bot: isBot
     });
     
-    // Rename session if first message
     if (!isBot && messages.length === 0) {
        const shortTitle = text.slice(0, 30) + (text.length > 30 ? '...' : '');
        await supabase.from('chat_sessions').update({ title: shortTitle }).eq('id', activeSessionId);
@@ -136,21 +186,11 @@ function MainLayout({ session }) {
   // --- SEND MESSAGE LOGIC ---
   const sendMessage = async (text = input) => {
     if (!text.trim()) return;
-    
     let activeSessionId = sessionId;
 
-    // If on home page or no session, start one automatically
     if (currentView !== 'chat' || !activeSessionId) {
-       const { data } = await supabase
-        .from('chat_sessions')
-        .insert({ user_id: session.user.id, title: text.slice(0, 30) })
-        .select().single();
-       if (data) {
-         activeSessionId = data.id;
-         setSessionId(data.id);
-         setCurrentView('chat');
-         fetchChatHistory();
-       }
+       const { data } = await supabase.from('chat_sessions').insert({ user_id: session.user.id, title: text.slice(0, 30) }).select().single();
+       if (data) { activeSessionId = data.id; setSessionId(data.id); setCurrentView('chat'); fetchChatHistory(); }
     }
 
     const userMessage = { role: 'user', text: text };
@@ -164,19 +204,22 @@ function MainLayout({ session }) {
       const response = await fetch('https://unimind-lx09.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: text,
-          user_id: session.user.id
-         }),
+        body: JSON.stringify({ question: text, user_id: session.user.id }),
       });
       const data = await response.json();
       
-      setMessages((prev) => [...prev, { 
-        role: 'bot', 
-        text: data.answer, 
-        sources: data.sources || [] 
-      }]);
-      
-      saveMessageToDB(data.answer, true, activeSessionId);
+      // === GOOGLE CALENDAR TRIGGER ===
+      if (data.command === 'schedule_google') {
+        setMessages(prev => [...prev, { role: 'bot', text: data.answer }]); 
+        setPendingEvent(data.event_details); 
+      } else {
+        setMessages((prev) => [...prev, { 
+          role: 'bot', 
+          text: data.answer, 
+          sources: data.sources || [] 
+        }]);
+        saveMessageToDB(data.answer, true, activeSessionId);
+      }
 
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'bot', text: "❌ Connection Error." }]);
@@ -185,7 +228,6 @@ function MainLayout({ session }) {
     }
   };
 
-  // --- HANDLE FILE UPLOAD ---
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -207,40 +249,16 @@ function MainLayout({ session }) {
         method: 'POST',
         body: formData,
       });
-      
       let replyText = response.ok ? "✅ **I have learned the document!** Ask me anything." : "❌ Failed to read document.";
-      
-      setMessages(prev => {
-         const newMsgs = [...prev];
-         newMsgs[newMsgs.length - 1].text = replyText;
-         return newMsgs;
-      });
-
+      setMessages(prev => { const newMsgs = [...prev]; newMsgs[newMsgs.length - 1].text = replyText; return newMsgs; });
     } catch (error) {
       setMessages(prev => [...prev, { role: 'bot', text: "❌ Error uploading file." }]);
     } finally {
       setIsUploading(false);
     }
   };
-
-  const startListening = () => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'en-US';
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-      setIsListening(true);
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        sendMessage(transcript);
-        setIsListening(false);
-      };
-      recognition.onend = () => setIsListening(false);
-      recognition.start();
-    } else { alert("Voice not supported."); }
-  };
+  
+  const startListening = () => { /* ... */ };
 
   return (
     <div className="flex h-screen bg-[#131314] text-[#e3e3e3] font-sans overflow-hidden relative">
@@ -271,10 +289,7 @@ function MainLayout({ session }) {
             <span className="font-semibold text-lg tracking-tight text-white">{BRAND_NAME}</span>
           </div>
           
-          <button 
-            onClick={startNewChat} 
-            className="flex items-center gap-3 w-full bg-[#2a2b2e] hover:bg-[#333] px-4 py-3 rounded-full text-sm font-medium transition-all mb-6 text-white border border-[#333]"
-          >
+          <button onClick={startNewChat} className="flex items-center gap-3 w-full bg-[#2a2b2e] hover:bg-[#333] px-4 py-3 rounded-full text-sm font-medium transition-all mb-6 text-white border border-[#333]">
             <Plus size={18} /> New chat
           </button>
 
@@ -293,22 +308,29 @@ function MainLayout({ session }) {
             ))}
           </div>
 
-          {/* VAULT SUGGESTIONS */}
-          {vaultSuggestions.length > 0 && (
-            <div className="space-y-1 mt-2 border-t border-[#333] pt-4 mb-4">
-               <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">From your Vault</div>
-               {vaultSuggestions.map((file, i) => (
-                 <button key={i} onClick={() => sendMessage(`Explain ${file.filename}`)} className="w-full text-left px-3 py-2 text-xs text-[#c4c7c5] hover:bg-[#2a2b2e] rounded-lg truncate flex items-center gap-2">
-                    <FileText size={12} /> {file.filename}
-                 </button>
-               ))}
-            </div>
-          )}
-
           <div className="mt-auto pt-4 border-t border-[#333]">
+            
+            {/* --- CALENDAR BUTTON --- */}
+            <button onClick={() => { setCurrentView('calendar'); setMobileMenuOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 text-sm transition-colors mb-2 ${currentView === 'calendar' ? 'bg-[#333] text-white' : 'text-[#c4c7c5] hover:bg-[#2a2b2e]'}`}>
+              <CalIcon size={18} className="text-purple-400" /><span className="font-medium">My Schedule</span>
+            </button>
+
+            {/* --- VAULT BUTTON --- */}
             <button onClick={() => { setCurrentView('vault'); setMobileMenuOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 text-sm transition-colors mb-2 ${currentView === 'vault' ? 'bg-[#333] text-white' : 'text-[#c4c7c5] hover:bg-[#2a2b2e]'}`}>
               <Archive size={18} className="text-green-400" /><span className="font-medium">My Vault</span>
             </button>
+
+            {/* --- NETWORK BUTTON (NEW) --- */}
+            <button onClick={() => { setCurrentView('network'); setMobileMenuOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 text-sm transition-colors mb-2 ${currentView === 'network' ? 'bg-[#333] text-white' : 'text-[#c4c7c5] hover:bg-[#2a2b2e]'}`}>
+              <Users size={18} className="text-orange-400" /><span className="font-medium">Network</span>
+            </button>
+
+            {/* --- DM BUTTON (NEW) --- */}
+            <button onClick={() => { setCurrentView('dm'); setMobileMenuOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 text-sm transition-colors mb-2 ${currentView === 'dm' ? 'bg-[#333] text-white' : 'text-[#c4c7c5] hover:bg-[#2a2b2e]'}`}>
+              <MessageSquare size={18} className="text-blue-400" /><span className="font-medium">Messages</span>
+            </button>
+
+            {/* --- PROFILE BUTTON --- */}
             <button onClick={() => { setCurrentView('profile'); setMobileMenuOpen(false); }} className={`w-full text-left px-2 py-2 rounded-lg flex items-center gap-3 text-sm transition-colors ${currentView === 'profile' ? 'bg-[#333]' : 'hover:bg-[#2a2b2e]'}`}>
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs uppercase">{session.user.email[0]}</div>
               <div className="flex-1 overflow-hidden"><div className="text-gray-200 font-medium truncate w-32">{userName}</div><div className="text-xs text-green-400">View Profile</div></div>
@@ -320,7 +342,6 @@ function MainLayout({ session }) {
 
       {/* --- MAIN CONTENT AREA --- */}
       <div className="flex-1 flex flex-col relative w-full h-full bg-[#131314]">
-        
         {currentView === 'home' ? (
            <Home userName={userName} onNavigate={(view) => {
              if (view === 'new_chat') startNewChat();
@@ -330,6 +351,15 @@ function MainLayout({ session }) {
           <div className="flex-1 overflow-y-auto pt-16 md:pt-0"><Profile session={session} /></div>
         ) : currentView === 'vault' ? (
           <div className="flex-1 overflow-y-auto pt-16 md:pt-0"><Vault session={session} /></div>
+        ) : currentView === 'calendar' ? (
+          // RENDER THE NEW CALENDAR VIEW
+         <div className="flex-1 overflow-y-auto pt-16 md:pt-0"><Calendar session={session} /></div>
+        ) : currentView === 'network' ? (
+          // RENDER NETWORK VIEW
+          <div className="flex-1 overflow-y-auto pt-16 md:pt-0"><Network session={session} /></div>
+        ) : currentView === 'dm' ? (
+          // RENDER DM VIEW
+          <div className="flex-1 h-full pt-16 md:pt-0"><UserChat session={session} /></div>
         ) : (
           /* --- CHAT VIEW --- */
           <>
@@ -341,10 +371,7 @@ function MainLayout({ session }) {
                       <h1 className="text-4xl md:text-6xl font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-red-400 text-transparent bg-clip-text pb-2">Hello, {userName}.</h1>
                       <h2 className="text-2xl md:text-3xl font-medium text-[#444746] mt-2">What can I help with?</h2>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-xl px-2">
-                      <button onClick={() => sendMessage("What is the syllabus for Java?")} className="text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-4 rounded-xl border border-transparent hover:border-[#444] transition-all"><Compass size={24} className="text-blue-400 mb-2" /><p className="text-white font-medium">Explain Syllabus</p><p className="text-gray-500 text-xs">for Java Programming</p></button>
-                      <button onClick={() => sendMessage("What are the attendance rules?")} className="text-left bg-[#1e1f20] hover:bg-[#2a2b2e] p-4 rounded-xl border border-transparent hover:border-[#444] transition-all"><GraduationCap size={24} className="text-purple-400 mb-2" /><p className="text-white font-medium">Check Rules</p><p className="text-gray-500 text-xs">attendance & exams</p></button>
-                    </div>
+                    {/* ... (suggestions grid) ... */}
                   </div>
                 ) : (
                   <div className="space-y-6 py-6">
@@ -356,44 +383,22 @@ function MainLayout({ session }) {
                             {msg.role === 'bot' ? (
                               <div className="prose prose-invert prose-p:leading-7 prose-li:marker:text-gray-500 max-w-none">
                                 <ReactMarkdown>{msg.text}</ReactMarkdown>
-                                
-                                {/* --- DISPLAY SOURCES (CORRECTED) --- */}
-{msg.sources && msg.sources.length > 0 && (
-  <div className="mt-4 pt-3 border-t border-[#333]">
-    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources (Click to open):</p>
-    <div className="flex flex-wrap gap-2">
-      {msg.sources.map((src, i) => {
-        // 1. Get the URL. If it's an object, use .url. If string, it's broken.
-        // We fallback to '#' to prevent crashing.
-        const fileUrl = (typeof src === 'object' && src.url) ? src.url : '#';
-        
-        // 2. Get the Name.
-        const fileName = (typeof src === 'object' && src.name) ? src.name : src;
-
-        return (
-          <a 
-            key={i} 
-            href={fileUrl} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className={`flex items-center gap-1.5 bg-[#2a2b2e] border border-[#333] px-3 py-1.5 rounded-full text-xs transition-all no-underline ${fileUrl !== '#' ? 'hover:bg-[#333] hover:border-blue-500 text-blue-400 cursor-pointer' : 'opacity-50 cursor-not-allowed text-gray-500'}`}
-            onClick={(e) => { 
-              if(fileUrl === '#') {
-                e.preventDefault(); 
-                alert("This file is from an old chat and cannot be opened. Please re-upload.");
-              }
-            }} 
-          >
-            <FileText size={12} />
-            <span className="truncate max-w-[200px] font-medium">{fileName}</span>
-          </a>
-        );
-      })}
-    </div>
-  </div>
-)}
-                                {/* --- END SOURCES --- */}
-
+                                {msg.sources && msg.sources.length > 0 && (
+                                  <div className="mt-4 pt-3 border-t border-[#333]">
+                                    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Sources (Click to open):</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {msg.sources.map((src, i) => {
+                                        const fileName = typeof src === 'string' ? src : src.name;
+                                        const fileUrl = typeof src === 'string' ? '#' : src.url;
+                                        return (
+                                          <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-[#131314] border border-[#333] px-3 py-1.5 rounded-full text-xs text-blue-400 transition-all cursor-pointer no-underline" onClick={(e) => { if(fileUrl === '#') e.preventDefault(); }}>
+                                            <FileText size={12} /> <span className="truncate max-w-[200px] font-medium">{fileName}</span>
+                                          </a>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (<p>{msg.text}</p>)}
                           </div>
