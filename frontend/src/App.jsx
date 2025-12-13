@@ -258,7 +258,36 @@ function MainLayout({ session }) {
     }
   };
   
-  const startListening = () => { /* ... */ };
+  const startListening = () => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      
+      setIsListening(true);
+      
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        sendMessage(transcript); // Automatically send after speaking
+        setIsListening(false);
+      };
+      
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error", event.error);
+        setIsListening(false);
+        alert("Microphone access denied or error occurred.");
+      };
+
+      recognition.onend = () => setIsListening(false);
+      
+      recognition.start();
+    } else {
+      alert("Voice input is not supported in this browser. Please use Google Chrome or Edge.");
+    }
+  };
 
   return (
     <div className="flex h-screen bg-[#131314] text-[#e3e3e3] font-sans overflow-hidden relative">
