@@ -1,0 +1,1102 @@
+PROBLEM 1 — Minimum Consecutive Team Selection 
+
+ 
+
+QUESTION 
+
+ 
+
+Uma wants to select a minimum number of consecutive people standing in a row such that the sum of their work hours becomes strictly greater than 100. 
+
+You are given an integer n representing the number of people, and an array workHours[] where workHours[i] is the number of hours contributed by the i-th person. 
+
+Your task is to print: 
+
+The minimum length of a consecutive subarray whose sum is greater than 100 
+
+Print -1 if no such group exists 
+
+Sample Test Cases  
+
+ 
+
+1) Input 5 
+
+40 30 50 20 60 
+
+Output 
+
+3 
+
+Explanation: 
+
+40 + 30 + 50 = 120 (>100) using only 3 consecutive people. 
+
+ 
+
+2) Input 4 
+
+10 20 30 40 
+
+Output 
+
+4 
+
+Explanation: 
+
+Total = 100, still not >100, but 10+20+30+40=100 → not valid → -1 
+
+ 
+
+3) Input 3 
+
+90 15 10 
+
+Output 
+
+2 
+
+Explanation: 
+
+90 + 15 = 105 (>100) using only 2 people. 
+
+ 
+
+4) Input 5 
+
+101 2 3 4 5 
+
+Output 
+
+1 
+
+Explanation: 
+
+A single person with 101 hours already >100. 
+
+ 
+
+5) Input 6 
+
+20 20 20 20 20 20 
+
+Output 
+
+-1 
+
+Explanation: 
+
+Even all 6 → sum = 120 (>100). Minimum length = 6. 
+
+ 
+
+6) Input 4 
+
+60 50 10 5 
+
+Output 
+
+2 
+
+Explanation: 
+
+60 + 50 = 110 (>100). 
+
+7) Input 5 
+
+1 2 3 4 150 
+
+Output 
+
+1 
+
+Explanation: 
+
+Single person 150 >100. 
+
+ 
+
+8) Input 5 
+
+30 30 30 30 30 
+
+Output 
+
+4 
+
+Explanation: 
+
+30+30+30+30=120 (>100). Minimum = 4. 
+
+ 
+
+9) Input 1 
+
+99 
+
+Output 
+
+-1 
+
+Explanation: 
+
+99 is NOT >100, and there are no more people. 
+
+ 
+
+10) Input 3 
+
+34 34 34 
+
+Output 
+
+3 
+
+Explanation: 
+
+Sum of all 3 = 102 (>100). Minimum = 3. 
+
+C CODE (Sliding Window) 
+
+ 
+
+#include <stdio.h> 
+
+int main() { 
+
+    int n; 
+
+    scanf(“%d”, &n); 
+
+    long long arr[n]; 
+
+ 
+
+    for (int i = 0; i < n; i++) 
+
+        scanf(“%lld”, &arr[i]); 
+
+ 
+
+    long long sum = 0; 
+
+    int start = 0, minLen = 1000000000; 
+
+ 
+
+    for (int end = 0; end < n; end++) { 
+
+       sum += arr[end]; 
+
+ 
+
+        while (sum > 100) { 
+
+            if (end – start + 1 < minLen) 
+
+                minLen = end – start + 1; 
+
+ 
+
+            sum -= arr[start]; 
+
+            start++; 
+
+        } 
+
+    } 
+
+ 
+
+    If (minLen == 1000000000) 
+
+        printf(“-1\n”); 
+
+    else 
+
+        printf(“%d\n”, minLen); 
+
+ 
+
+    return 0; 
+
+} 
+
+ 
+
+JAVA CODE (Sliding Window) 
+
+import java.util.*; 
+
+public class Main { 
+
+    public static void main(String[] args) { 
+
+        Scanner sc = new Scanner(System.in); 
+
+ 
+
+        int n = sc.nextInt(); 
+
+        long[] arr = new long[n]; 
+
+ 
+
+        for (int i = 0; i < n; i++) 
+
+            arr[i] = sc.nextLong(); 
+
+ 
+
+        long sum = 0; 
+
+        int start = 0, minLen = Integer.MAX_VALUE; 
+
+ 
+
+        for (int end = 0; end < n; end++) { 
+
+            sum += arr[end]; 
+
+ 
+
+            while (sum > 100) { 
+
+                minLen = Math.min(minLen, end – start + 1); 
+
+                sum -= arr[start]; 
+
+                start++; 
+
+            } 
+
+        } 
+
+ 
+
+        If (minLen == Integer.MAX_VALUE) 
+
+            System.out.println(“-1”); 
+
+        else 
+
+            System.out.println(minLen); 
+
+    } 
+
+} 
+
+ 
+
+__________________________________________________ 
+
+ 
+
+PROBLEM 2 — Reverse and Add Palindrome 
+
+ 
+
+QUESTION 
+
+ 
+
+You are given a number. 
+
+Your task is to: 
+Check if it is already a palindrome → print “Palindrome” 
+Otherwise repeatedly: 
+Reverse number 
+Add to original 
+Until it becomes a palindrome OR until 10 iterations 
+If palindrome is found → print “Palindrome: result” 
+If not found within 10 steps → print “Palindrome not found within limit” 
+
+
+ Sample Test Cases  
+
+1) Input 121 
+
+Output 
+Palindrome 
+
+Explanation: 
+
+Already palindrome. 
+
+ 2) Input 56 
+
+Output 
+Palindrome: 121 
+
+Explanation: 
+
+56 + 65 = 121. 
+
+3) Input 10 
+
+Output 
+Palindrome: 11 
+
+Explanation: 
+
+10 + 01 = 11. 
+
+4) Input 87 
+
+Output 
+Palindrome: 4884 
+
+Explanation: 
+
+87→165→726→1353→4884. 
+
+5) Input 95 
+
+Output 
+Palindrome: 1111 
+
+6) Input 195 
+
+Output 
+Palindrome: 9339 
+
+7) Input 0 
+
+Output 
+Palindrome 
+ 
+8)  Input  89 
+
+Output 
+Palindrome not found within limit. 
+
+9) Input 196 
+
+Output 
+Palindrome not found within limit. 
+
+Explanation: 
+Suspected Lychrel number. 
+
+10)Input 11 
+
+Output 
+Palindrome 
+
+C CODE 
+
+#include <stdio.h> 
+
+long long reverseNumber(long long n) { 
+
+    long long rev = 0; 
+
+    while (n > 0) { 
+        rev = rev * 10 + (n % 10); 
+        n /= 10; 
+    } 
+    return rev; 
+} 
+
+int isPalindrome(long long n) { 
+    return n == reverseNumber(n); 
+} 
+
+int main() { 
+
+    long long num; 
+
+    scanf(“%lld”, &num); 
+
+    if (isPalindrome(num)) { 
+
+        printf(“Palindrome\n”); 
+        return 0; 
+
+    } 
+
+   for (int i = 0; i < 10; i++) { 
+        long long rev = reverseNumber(num); 
+        num = num + rev; 
+
+        if (isPalindrome(num)) { 
+           printf(“Palindrome: %lld\n”, num); 
+            return 0; 
+        } 
+    } 
+    printf(“Palindrome not found within limit.\n”); 
+    return 0; 
+}  
+
+ JAVA CODE 
+
+import java.util.*; 
+
+public class ReverseAddPalindrome { 
+
+    public static long reverseNumber(long n) { 
+        long rev = 0; 
+        while (n != 0) { 
+            rev = rev * 10 + (n % 10); 
+            n /= 10; 
+        } 
+        return rev; 
+    } 
+
+    public static boolean isPalindrome(long n) { 
+        return n == reverseNumber(n); 
+    } 
+
+    public static void main(String[] args) { 
+
+        Scanner sc = new Scanner(System.in); 
+        long num = sc.nextLong(); 
+
+        If (isPalindrome(num)) { 
+            System.out.println(“Palindrome”); 
+            return; 
+        } 
+
+         for (int i = 0; i < 10; i++) { 
+            long rev = reverseNumber(num); 
+            num = num + rev; 
+
+            if (isPalindrome(num)) { 
+                System.out.println(“Palindrome: “ + num); 
+                return; 
+            } 
+        } 
+        System.out.println(“Palindrome not found within limit.”); 
+    } 
+} 
+
+_____________________________________________________________________________________________________________________________________________________________________
+
+PROBLEM 3 — Peak Element 
+
+QUESTION 
+
+ You are given an array of heights. 
+A peak is an element that is strictly greater than its neighbour's. 
+Find any peak index. 
+
+Test Cases  
+
+ 1) Input 
+1 2 3 1 
+Output 
+2 
+
+2) Input 
+1 2 1 3 5 6 4 
+Output  
+1 
+
+3) Input 
+5 
+Output 
+0 
+
+4) Input 
+2 1 
+Output 
+0 
+
+5) Input 
+1 2 
+Output 
+1 
+
+6) Input 
+4 9 7 3 2 
+Output 
+1 
+
+7) Input 
+6 4 2 1 
+Output 
+0 
+
+8) Input 
+1 3 5 7 8 
+Output 
+4 
+
+9) Input 
+2 5 3 8 6 9 1 
+Output 
+3 
+
+10) Input 
+10 20 15 2 23 90 67 
+Output 
+5 
+
+C CODE 
+
+#include <stdio.h> 
+
+int findPeak(int arr[], int n) { 
+
+    if (n == 1) return 0; 
+    if (arr[0] > arr[1]) return 0; 
+    if (arr[n-1] > arr[n-2]) return n-1; 
+
+     for (int i = 1; i < n-1; i++) { 
+        if (arr[i] > arr[i-1] && arr[i] > arr[i+1]) 
+            return i; 
+    } 
+    return -1; 
+} 
+
+int main() { 
+    int arr[] = {1, 2, 3, 1}; 
+    int n = sizeof(arr)/sizeof(arr[0]); 
+    printf(“%d\n”, findPeak(arr, n)); 
+    return 0; 
+} 
+
+JAVA CODE 
+
+public class PeakElement { 
+    public static int findPeak(int[] nums) { 
+
+        int n = nums.length; 
+
+        if (n == 1) return 0; 
+
+        if (nums[0] > nums[1]) return 0; 
+
+        if (nums[n – 1] > nums[n – 2]) return n – 1; 
+
+        for (int i = 1; i < n – 1; i++) { 
+            if (nums[i] > nums[i – 1] && nums[i] > nums[i + 1]) 
+                return i; 
+        } 
+        return -1; 
+    } 
+
+    public static void main(String[] args) { 
+        int[] arr = {1, 2, 3, 1}; 
+        System.out.println(findPeak(arr)); 
+    } 
+} 
+
+____________________________________________________________________________________ 
+
+
+ QUESTION 4
+
+ Warehouse Shipment Loading 
+
+Scenario 
+
+A logistics company runs a large warehouse that needs to ship packages every day. 
+There are N boxes, and each box has a certain weight. 
+A truck has a maximum weight capacity W. 
+You can place multiple boxes in a single truck as long as their combined weight ≤ W. 
+The goal is to determine: 
+Minimum number of trucks required 
+To ship all the boxes. 
+
+Important Notes 
+You cannot split a box. 
+You can load boxes in any order (so sorting helps minimize trucks). 
+This is a Classic Greedy / Two-pointer problem similar to “Boat to Save People”. 
+
+
+Input Format 
+
+N W 
+W1 w2 w3 ... wN 
+
+Where: 
+N = number of boxes 
+W = capacity of truck 
+Wi = weight of the i-th box 
+
+
+TEST CASES  
+
+Test Case 1 
+
+Input 
+5 10 
+2 3 8 4 5 
+
+Output 
+3 
+
+Explanation 
+
+Pairs after sorting → [2,3,4,5,8] 
+
+(8 + 2) = 10 → Truck 1 
+
+(5 + 3) = 8 → Truck 2 
+
+(4) → Truck 3 
+
+ 
+Test Case 2 
+
+Input 
+4 7 
+3 5 3 4 
+
+Output 
+3 
+
+Explanation 
+
+Sorted → [3,3,4,5] 
+
+5 alone 
+4 + 3 
+3 alone 
+
+Test Case 3 
+
+Input 
+3 6 
+1 2 3 
+
+Output 
+1 
+
+Explanation 
+
+1+2+3 = 6 fits in one truck. 
+
+Test Case 4 
+
+Input
+6 15 
+10 5 8 2 1 7 
+
+Output 
+3 
+
+Explanation 
+
+Sorted → [1,2,5,7,8,10] 
+
+10 + 5 = 15 
+
+8 + 7 = 15 
+2 + 1 = 3 
+
+Test Case 5 
+
+Input 
+5 12 
+6 6 6 6 6 
+
+Output 
+3 
+
+Explanation 
+
+Two 6’s per truck → (6+6)=12 → two trucks 
+One extra 6 → truck 3. 
+
+Test Case 6 
+
+Input 
+7 9 
+2 3 4 5 6 7 8 
+
+Output 
+4 
+
+Explanation 
+
+Sorted → [2,3,4,5,6,7,8] 
+
+Pairs: 
+
+8 + 2 
+7 + 3 
+6 + 4 
+5 alone 
+
+Test Case 7 
+
+Input 
+5 5 
+5 5 5 5 5 
+
+Output 
+5 
+
+Explanation 
+
+Each truck can take only one 5. 
+
+Test Case 8 
+
+Input 
+6 20 
+10 10 5 4 6 8 
+
+Output 
+3 
+
+Explanation 
+
+Sorted → [4,5,6,8,10,10] 
+
+Pairs: 
+10 + 10 = 20 
+8 + 6 = 14 
+5 + 4 = 9 
+
+Test Case 9 
+
+Input 
+4 16 
+3 8 12 7 
+
+Output 
+2 
+
+Explanation 
+
+Sorted → [3,7,8,12] 
+
+Pairs:
+12 + 3 = 15 
+8 + 7 = 15 
+
+Test Case 10 
+
+Input 
+8 25 
+12 8 17 4 6 19 3 7 
+
+Output 
+4 
+
+Explanation 
+
+Sorted → [3,4,6,7,8,12,17,19] 
+
+Pairs: 
+19 + 3 = 22 
+17 + 4 = 21 
+12 + 8 = 20 
+7 + 6 = 13 
+
+ 
+
+C CODE – Minimum Number of Trucks 
+
+#include <stdio.h> 
+#include <stdlib.h> 
+
+int compare(const void a, const void b)  { 
+return ((int)a - (int)b);  
+} 
+
+int main() {  
+
+int n, W;  
+
+scanf("%d %d", &n, &W); 
+
+int w[n]; 
+for (int i = 0; i < n; i++) 
+    scanf("%d", &w[i]); 
+ 
+qsort(w, n, sizeof(int), compare); 
+ 
+int i = 0, j = n - 1; 
+int trucks = 0; 
+while (i <= j) { 
+    if (w[i] + w[j] <= W) { 
+        i++; 
+    } 
+    j--; 
+    trucks++; 
+} 
+printf("%d\n", trucks); 
+return 0; 
+} 
+
+ 
+
+JAVA CODE – Minimum Number of Trucks 
+
+import java.util.*; 
+
+public class Main { 
+    public static void main(String[] args) { 
+
+        Scanner sc = new Scanner(System.in); 
+        int n = sc.nextInt(); 
+        int W = sc.nextInt();
+        int[] w = new int[n]; 
+       
+	 for (int i = 0; i < n; i++) 
+            w[i] = sc.nextInt(); 
+        
+	Arrays.sort(w); 
+        int i = 0, j = n - 1; 
+        int trucks = 0; 
+
+        while (i <= j) { 
+            if (w[i] + w[j] <= W) { 
+                i++; 
+            } 
+            j--; 
+            trucks++; 
+        } 
+        System.out.println(trucks); 
+    } 
+}
+________________________________________________________________________________ 
+
+Question 5
+
+K-Anagrams
+
+Riya and Aarav are participating in a coding treasure hunt.
+In one of the rounds, they find a mysterious locked box.
+On the box, there are two strings engraved, and a hint note:
+
+“You may alter the destiny of at most k characters to make both spells identical in power.”
+
+Riya realizes that the "spells" are simply strings, and to unlock the box she must make the two strings become anagrams of each other.
+
+But there is a catch:
+
+🔒 Rules written under the box:
+
+Both strings must be of the same length, otherwise they can never become matching spells.
+
+You are allowed to change at most k characters in the first string.
+
+After performing up to k changes, both strings must contain the same characters with the same frequencies (i.e., they must become anagrams).
+
+Your task is to help Riya determine:
+
+❓ Can the first string be transformed into an anagram of the second string using at most k modifications?
+
+If yes → the box opens.
+If no → the box stays locked.
+
+Test Cases
+
+Test Case 1 — Perfect Anagrams (k = 0)
+
+Input:
+A = "listen"
+B = "silent"
+k = 0
+
+Output:
+True
+
+Explanation:
+Both strings are already anagrams.
+No changes needed → 0 ≤ 0 → True.
+
+Test Case 2 — Length Mismatch (Always Invalid)
+
+Input:
+A = "abc"
+B = "abcd"
+k = 5
+
+Output:
+False
+
+Explanation:
+Strings have different lengths → anagrams impossible → False.
+
+Test Case 3 — Exactly k Changes Required
+
+Input:
+A = "abcd"
+B = "bccd"
+k = 1
+
+Output:
+True
+
+Explanation:
+Mismatch: 'a' in A vs 'b' in B
+One change 'a' → 'b' fixes it → 1 ≤ 1.
+
+Test Case 4 — More Than k Changes Needed
+
+Input:
+A = "anagram"
+B = "grammar"
+k = 2
+
+Output:
+False
+
+Explanation:
+At least 3 mismatches exist.
+3 > 2 → not possible → False.
+
+Test Case 5 — No Mismatches (Extra k is unused)
+
+Input:
+A = "aabbcc"
+B = "ccbbaa"
+k = 3
+
+Output:
+True
+
+Explanation:
+They are already anagrams.
+0 changes needed → always ≤ k → True.
+
+Test Case 6 — Large Mismatch but Large k
+
+Input:
+A = "aaaaaa"
+B = "bbbbbb"
+k = 6
+
+Output:
+True
+
+Explanation:
+All 6 characters must change → exactly 6 changes.
+6 ≤ 6 → True.
+
+Test Case 7 — Small String Edge Case
+
+Input:
+A = "a"
+B = "b"
+k = 0
+
+Output:
+False
+
+Explanation:
+One change is required (a → b).
+k = 0, no changes allowed → False.
+
+Test Case 8 — Characters Repeated Unequally
+
+Input:
+A = "abbc"
+B = "bbaa"
+k = 1
+
+Output:
+True
+
+Explanation:
+Mismatch:
+A has extra 'c'
+B has extra 'a'
+Change 'c' → 'a' → 1 change → True.
+
+Test Case 9 — Case Sensitivity (Edge Case)
+
+Input:
+A = "AaBb"
+B = "aabb"
+k = 2
+
+Output:
+True
+
+Explanation:
+If case-sensitive → 'A' ≠ 'a', 'B' ≠ 'b'.
+Exactly 2 mismatches → 2 ≤ 2 → True.
+
+Test Case 10 — All Characters Same but Extra One
+
+Input:
+A = "aaaaa"
+B = "aaaab"
+k = 0
+
+Output:
+False
+
+Explanation:
+B has one extra 'b'.
+Need to change one 'a' → 'b'.
+But k = 0 → no changes allowed → False.
+
+
+C Code 
+
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
+
+bool areKAnagrams(char *A, char *B, int k) {
+    int lenA = strlen(A);
+    int lenB = strlen(B);
+    if (lenA != lenB) return false;
+    int freqA[26] = {0};
+    int freqB[26] = {0};
+    for (int i = 0; i < lenA; i++) {
+        freqA[A[i] - 'a']++;
+        freqB[B[i] - 'a']++;
+    }
+    int changesNeeded = 0;
+    for (int i = 0; i < 26; i++) {
+        if (freqA[i] > freqB[i]) {
+            changesNeeded += freqA[i] - freqB[i];
+        }
+    }
+    return (changesNeeded <= k);
+}
+
+int main() {
+    char A[] = "abbc";
+    char B[] = "bbaa";
+    int k = 1;
+
+    if (areKAnagrams(A, B, k))
+        printf("True");
+    else
+        printf("False");
+
+    return 0;
+}
+
+Java code
+
+public class KAnagramCheck {
+
+    public static boolean areKAnagrams(String A, String B, int k) {
+
+        if (A.length() != B.length()) {
+            return false;
+        }
+        int[] freqA = new int[26];
+        int[] freqB = new int[26];
+        for (int i = 0; i < A.length(); i++) {
+            freqA[A.charAt(i) - 'a']++;
+            freqB[B.charAt(i) - 'a']++;
+        }
+        int changesNeeded = 0;
+        for (int i = 0; i < 26; i++) {
+            if (freqA[i] > freqB[i]) {
+                changesNeeded += freqA[i] - freqB[i];
+            }
+        }
+        return changesNeeded <= k;
+    }
+
+    public static void main(String[] args) {
+        String A = "abbc";
+        String B = "bbaa";
+        int k = 1;
+
+        System.out.println(areKAnagrams(A, B, k));
+    }
+}
