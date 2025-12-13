@@ -56,28 +56,64 @@ export default function Vault({ session }) {
     }
   };
 
-  const downloadFile = async (path, filename) => {
+const downloadFile = async (path, filename) => {
     try {
-      const { data, error } = await supabase.storage.from('vault').download(path);
+      // 1. Get a Signed URL (Valid for 60 seconds)
+      const { data, error } = await supabase.storage
+        .from('vault')
+        .createSignedUrl(path, 60);
+
       if (error) throw error;
-      const url = URL.createObjectURL(data);
+
+      // 2. Force the browser to download it
       const a = document.createElement('a');
-      a.href = url;
+      a.href = data.signedUrl;
       a.download = filename;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
+      
     } catch (error) {
-      alert("Error downloading: " + error.message);
+      console.error("Download Error:", error);
+      alert("Error downloading file. Please try again.");
     }
   };
 
-  const deleteFile = async (id, path) => {
-    if (!confirm("Are you sure you want to delete this?")) return;
-    
-    // Delete from Storage
-    await supabase.storage.from('vault').remove([path]);
-    // Delete from DB
-    await supabase.from('vault_items').delete().eq('id', id);
-    fetchVault();
+const deleteFile = async (id, filePath) => {
+    if (!confirm("Are you sure you want to delete this file completely?")) return;
+
+    try {
+      // 1. Delete from Storage (The actual file)
+      const { error: storageError } = await supabase.storage
+        .from('vault')
+        .remove([filePath]);
+
+      if (storageError) {
+        console.error("Storage Delete Error:", storageError);
+        alert("Failed to delete file from cloud. Check permissions.");
+        return;
+      }
+
+      // 2. Delete from Database (The record)
+      const { error: dbError } = await supabase
+        .from('vault_items')
+        .delete()
+        .eq('id', id);
+
+      if (dbError) {
+        console.error("DB Delete Error:", dbError);
+        alert("Failed to delete database record.");
+        return;
+      }
+
+      // 3. Refresh UI
+      fetchVault();
+      alert("File deleted successfully.");
+
+    } catch (error) {
+      console.error("Unexpected Error:", error);
+      alert("An unexpected error occurred.");
+    }
   };
 
   return (
